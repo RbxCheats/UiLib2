@@ -349,14 +349,14 @@ function OnetapUI:CreateWindow(config)
         })
         New("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding   = UDim.new(0, 3),
+            Padding   = UDim.new(0, 6),
             Parent    = TabContent,
         })
         New("UIPadding", {
-            PaddingTop    = UDim.new(0, 5),
-            PaddingLeft   = UDim.new(0, 5),
-            PaddingRight  = UDim.new(0, 8),
-            PaddingBottom = UDim.new(0, 5),
+            PaddingTop    = UDim.new(0, 8),
+            PaddingLeft   = UDim.new(0, 6),
+            PaddingRight  = UDim.new(0, 9),
+            PaddingBottom = UDim.new(0, 8),
             Parent        = TabContent,
         })
 
@@ -438,7 +438,7 @@ function OnetapUI:CreateWindow(config)
         -- Set BackgroundTransparency = 1 on the label so it's invisible.
         function Tab:AddSeparator(labelText)
             local Frame = New("Frame", {
-                Size                  = UDim2.new(1, 0, 0, 18),
+                Size                  = UDim2.new(1, 0, 0, 20),
                 BackgroundTransparency= 1,
                 LayoutOrder           = NextOrder(),
                 Parent                = TabContent,
@@ -455,12 +455,12 @@ function OnetapUI:CreateWindow(config)
             New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = AccentDot })
 
             if labelText and labelText ~= "" then
-                -- Label with TRANSPARENT background — no border/outline artifact
+                -- Gap between dot and text: dot ends at X=6, label starts at X=14 (8px gap)
                 New("TextLabel", {
                     Size                  = UDim2.new(0, 0, 1, 0),
                     AutomaticSize         = Enum.AutomaticSize.X,
-                    Position              = UDim2.new(0, 10, 0, 0),
-                    BackgroundTransparency= 1,   -- was BackgroundColor3 = Theme.Background which caused outline
+                    Position              = UDim2.new(0, 14, 0, 0),
+                    BackgroundTransparency= 1,
                     Text                  = labelText,
                     TextColor3            = Theme.ElementTextDim,
                     Font                  = Theme.FontLight,
@@ -469,10 +469,10 @@ function OnetapUI:CreateWindow(config)
                     ZIndex                = 2,
                     Parent                = Frame,
                 })
-                -- Line after the label
+                -- Short line to the right of the label (starts ~90px in)
                 New("Frame", {
-                    Size             = UDim2.new(1, -90, 0, 1),
-                    Position         = UDim2.new(0, 80, 0.5, 0),
+                    Size             = UDim2.new(1, -96, 0, 1),
+                    Position         = UDim2.new(0, 90, 0.5, 0),
                     BackgroundColor3 = Theme.Separator,
                     BorderSizePixel  = 0,
                     Parent           = Frame,
@@ -480,7 +480,7 @@ function OnetapUI:CreateWindow(config)
             else
                 -- Full-width line when no label
                 New("Frame", {
-                    Size             = UDim2.new(1, -10, 0, 1),
+                    Size             = UDim2.new(1, -12, 0, 1),
                     Position         = UDim2.new(0, 10, 0.5, 0),
                     BackgroundColor3 = Theme.Separator,
                     BorderSizePixel  = 0,
@@ -1178,21 +1178,23 @@ function OnetapUI:CreateWindow(config)
             local SVBtn = New("TextButton", {
                 Size = UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=24, Parent=SVBase
             })
-            SVBtn.MouseButton1Down:Connect(function(x, y)
+            SVBtn.MouseButton1Down:Connect(function()
                 draggingSV = true
-                local r = SVBase.AbsoluteSize
+                local mouse = UserInputService:GetMouseLocation()
                 local p = SVBase.AbsolutePosition
-                s = math.clamp((x - p.X) / r.X, 0, 1)
-                v = 1 - math.clamp((y - p.Y) / r.Y, 0, 1)
+                local r = SVBase.AbsoluteSize
+                s = math.clamp((mouse.X - p.X) / r.X, 0, 1)
+                v = 1 - math.clamp((mouse.Y - p.Y) / r.Y, 0, 1)
                 ApplyColor()
             end)
 
             local HueBtn = New("TextButton", {
                 Size = UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=24, Parent=HueBar
             })
-            HueBtn.MouseButton1Down:Connect(function(_, y)
+            HueBtn.MouseButton1Down:Connect(function()
                 draggingH = true
-                h = math.clamp((y - HueBar.AbsolutePosition.Y) / HueBar.AbsoluteSize.Y, 0, 1)
+                local mouse = UserInputService:GetMouseLocation()
+                h = math.clamp((mouse.Y - HueBar.AbsolutePosition.Y) / HueBar.AbsoluteSize.Y, 0, 1)
                 ApplyColor()
             end)
 
