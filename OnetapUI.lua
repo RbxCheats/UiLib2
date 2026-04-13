@@ -143,39 +143,28 @@ function OnetapUI:CreateWindow(config)
         Position         = UDim2.new(0.5, -width/2, 0.5, -height/2),
         BackgroundColor3 = Theme.Background,
         BorderSizePixel  = 0,
-        ClipsDescendants = false,
+        ClipsDescendants = true,
         Parent           = ScreenGui,
     })
     New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = Root })
     New("UIStroke", { Color = Theme.Border, Thickness = 1.5, Parent = Root })
 
-    -- Top red accent line
-    local AccentLine = New("Frame", {
+    -- Top red accent line — Root's ClipsDescendants + UICorner rounds the corners cleanly
+    New("Frame", {
         Size             = UDim2.new(1, 0, 0, 2),
         BackgroundColor3 = Theme.BorderAccent,
         BorderSizePixel  = 0,
         ZIndex           = 10,
         Parent           = Root,
     })
-    New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = AccentLine })
 
-    -- Header
+    -- Header — no UICorner needed, Root's ClipsDescendants handles it
     local Header = New("Frame", {
         Size             = UDim2.new(1, 0, 0, 46),
         BackgroundColor3 = Theme.Header,
         BorderSizePixel  = 0,
         ZIndex           = 2,
         Parent           = Root,
-    })
-    New("UICorner", { CornerRadius = UDim.new(0, 6), Parent = Header })
-    -- Square off the bottom corners of the header
-    New("Frame", {
-        Size             = UDim2.new(1, 0, 0, 8),
-        Position         = UDim2.new(0, 0, 1, -8),
-        BackgroundColor3 = Theme.Header,
-        BorderSizePixel  = 0,
-        ZIndex           = 2,
-        Parent           = Header,
     })
 
     New("TextLabel", {
@@ -202,27 +191,6 @@ function OnetapUI:CreateWindow(config)
         ZIndex                = 3,
         Parent                = Header,
     })
-
-    -- Close button
-    local CloseBtn = New("TextButton", {
-        Size             = UDim2.new(0, 28, 0, 28),
-        Position         = UDim2.new(1, -38, 0.5, -14),
-        BackgroundColor3 = Color3.fromRGB(38, 38, 44),
-        Text             = "✕",
-        TextColor3       = Color3.fromRGB(150, 150, 162),
-        Font             = Theme.Font,
-        TextSize         = 11,
-        ZIndex           = 4,
-        Parent           = Header,
-    })
-    New("UICorner", { CornerRadius = UDim.new(0, 4), Parent = CloseBtn })
-    CloseBtn.MouseEnter:Connect(function()
-        Tween(CloseBtn, { BackgroundColor3 = Theme.BorderAccent, TextColor3 = Color3.fromRGB(255,255,255) })
-    end)
-    CloseBtn.MouseLeave:Connect(function()
-        Tween(CloseBtn, { BackgroundColor3 = Color3.fromRGB(38,38,44), TextColor3 = Color3.fromRGB(150,150,162) })
-    end)
-    CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
     -- Tab sidebar
     local TabBar = New("Frame", {
@@ -455,8 +423,8 @@ function OnetapUI:CreateWindow(config)
             New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = AccentDot })
 
             if labelText and labelText ~= "" then
-                -- Gap between dot and text: dot ends at X=6, label starts at X=14 (8px gap)
-                New("TextLabel", {
+                -- Label sitting 14px from the dot (dot ends at ~6px, 8px gap)
+                local SepLabel = New("TextLabel", {
                     Size                  = UDim2.new(0, 0, 1, 0),
                     AutomaticSize         = Enum.AutomaticSize.X,
                     Position              = UDim2.new(0, 14, 0, 0),
@@ -469,12 +437,23 @@ function OnetapUI:CreateWindow(config)
                     ZIndex                = 2,
                     Parent                = Frame,
                 })
-                -- Short line to the right of the label (starts ~90px in)
+                -- Line fills from right of label to end of frame
+                -- We use a frame anchored to the right so it automatically fills remaining space
                 New("Frame", {
-                    Size             = UDim2.new(1, -96, 0, 1),
-                    Position         = UDim2.new(0, 90, 0.5, 0),
+                    Size             = UDim2.new(1, -0, 0, 1),
+                    Position         = UDim2.new(0, 0, 0.5, 0),
                     BackgroundColor3 = Theme.Separator,
                     BorderSizePixel  = 0,
+                    ZIndex           = 1,
+                    Parent           = Frame,
+                })
+                -- Opaque cover over the line behind the label+dot so text is readable
+                New("Frame", {
+                    Size             = UDim2.new(0, 110, 1, 0),
+                    Position         = UDim2.new(0, 0, 0, 0),
+                    BackgroundColor3 = Theme.Background,
+                    BorderSizePixel  = 0,
+                    ZIndex           = 2,
                     Parent           = Frame,
                 })
             else
@@ -1173,29 +1152,29 @@ function OnetapUI:CreateWindow(config)
             end
 
             -- ── Drag Logic ─────────────────────────────
+            -- InputBegan always provides screen-space coords, unlike MouseButton1Down
+            -- which gives local/relative coords causing wrong position on click.
             local draggingSV, draggingH = false, false
 
-            local SVBtn = New("TextButton", {
-                Size = UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=24, Parent=SVBase
-            })
-            SVBtn.MouseButton1Down:Connect(function()
-                draggingSV = true
-                local mouse = UserInputService:GetMouseLocation()
-                local p = SVBase.AbsolutePosition
-                local r = SVBase.AbsoluteSize
-                s = math.clamp((mouse.X - p.X) / r.X, 0, 1)
-                v = 1 - math.clamp((mouse.Y - p.Y) / r.Y, 0, 1)
-                ApplyColor()
-            end)
-
-            local HueBtn = New("TextButton", {
-                Size = UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="", ZIndex=24, Parent=HueBar
-            })
-            HueBtn.MouseButton1Down:Connect(function()
-                draggingH = true
-                local mouse = UserInputService:GetMouseLocation()
-                h = math.clamp((mouse.Y - HueBar.AbsolutePosition.Y) / HueBar.AbsoluteSize.Y, 0, 1)
-                ApplyColor()
+            UserInputService.InputBegan:Connect(function(input, gpe)
+                if gpe or input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+                local mp = UserInputService:GetMouseLocation()
+                local svp, svs = SVBase.AbsolutePosition, SVBase.AbsoluteSize
+                if mp.X >= svp.X and mp.X <= svp.X + svs.X
+                and mp.Y >= svp.Y and mp.Y <= svp.Y + svs.Y then
+                    draggingSV = true
+                    s = math.clamp((mp.X - svp.X) / svs.X, 0, 1)
+                    v = 1 - math.clamp((mp.Y - svp.Y) / svs.Y, 0, 1)
+                    ApplyColor()
+                    return
+                end
+                local hp, hs = HueBar.AbsolutePosition, HueBar.AbsoluteSize
+                if mp.X >= hp.X and mp.X <= hp.X + hs.X
+                and mp.Y >= hp.Y and mp.Y <= hp.Y + hs.Y then
+                    draggingH = true
+                    h = math.clamp((mp.Y - hp.Y) / hs.Y, 0, 1)
+                    ApplyColor()
+                end
             end)
 
             UserInputService.InputChanged:Connect(function(input)
@@ -1266,6 +1245,13 @@ function OnetapUI:CreateWindow(config)
 
         return Tab
     end
+
+    -- Right Shift toggles the window — no setup needed, always active
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+            Root.Visible = not Root.Visible
+        end
+    end)
 
     function Window:SetKeybind(key)
         UserInputService.InputBegan:Connect(function(input, gpe)
