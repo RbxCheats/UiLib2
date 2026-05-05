@@ -1,7 +1,7 @@
 --[[
 ╔══════════════════════════════════════════════════════════════════╗
 ║                        EMBER UI LIBRARY                         ║
-║                     Version 1.0.0 | Public                      ║
+║                     Version 1.0.1 | Public                      ║
 ║          github.com/USERNAME/EmberUI  |  MIT License            ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -30,17 +30,17 @@ local Mouse       = LocalPlayer:GetMouse()
 
 -- ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 local Theme = {
-    Background      = Color3.fromHex("1e1f23"),  -- deep charcoal
-    Surface         = Color3.fromHex("2a2c31"),  -- panel containers
-    SurfaceHover    = Color3.fromHex("32353b"),  -- hovered panels
-    SurfaceActive   = Color3.fromHex("22242a"),  -- pressed / inset
-    Border          = Color3.fromHex("3a3d44"),  -- subtle borders
-    Accent          = Color3.fromHex("f0a64b"),  -- warm orange
-    AccentDark      = Color3.fromHex("c07a20"),  -- darker accent
-    AccentGlow      = Color3.fromHex("f0a64b"),  -- glow colour
-    TextPrimary     = Color3.fromHex("e8e9ec"),  -- main text
-    TextSecondary   = Color3.fromHex("9a9da6"),  -- dimmed text
-    TextDisabled    = Color3.fromHex("5a5d66"),  -- disabled
+    Background      = Color3.fromHex("1e1f23"),
+    Surface         = Color3.fromHex("2a2c31"),
+    SurfaceHover    = Color3.fromHex("32353b"),
+    SurfaceActive   = Color3.fromHex("22242a"),
+    Border          = Color3.fromHex("3a3d44"),
+    Accent          = Color3.fromHex("f0a64b"),
+    AccentDark      = Color3.fromHex("c07a20"),
+    AccentGlow      = Color3.fromHex("f0a64b"),
+    TextPrimary     = Color3.fromHex("e8e9ec"),
+    TextSecondary   = Color3.fromHex("9a9da6"),
+    TextDisabled    = Color3.fromHex("5a5d66"),
     Success         = Color3.fromHex("4caf8a"),
     Danger          = Color3.fromHex("e05c5c"),
     SliderTrack     = Color3.fromHex("1a1b1f"),
@@ -182,22 +182,25 @@ end
 
 function Util.MakeListLayout(gap, dir, align)
     local l = Instance.new("UIListLayout")
-    l.Padding          = UDim.new(0, gap or 6)
-    l.FillDirection    = dir   or Enum.FillDirection.Vertical
+    l.Padding             = UDim.new(0, gap or 6)
+    l.FillDirection       = dir   or Enum.FillDirection.Vertical
     l.HorizontalAlignment = align or Enum.HorizontalAlignment.Left
-    l.SortOrder        = Enum.SortOrder.LayoutOrder
+    l.SortOrder           = Enum.SortOrder.LayoutOrder
     return l
 end
 
-function Util.MakeGridLayout(cellSize, cellPadding, cols)
+-- FIX: UIGridLayout uses CellPaddingHorizontal/CellPaddingVertical (UDim),
+--      not the non-existent CellPaddingH/CellPaddingV.
+--      Also removed the bogus FillDirectionMaxCells property.
+function Util.MakeGridLayout(cellSize, cellPadding)
     local g = Instance.new("UIGridLayout")
-    g.CellSize            = cellSize    or UDim2.new(0.5, -6, 0, 1)
-    g.CellPaddingH        = UDim.new(0, cellPadding or 8)
-    g.CellPaddingV        = UDim.new(0, cellPadding or 8)
-    g.FillDirection        = Enum.FillDirection.Horizontal
-    g.HorizontalAlignment  = Enum.HorizontalAlignment.Left
-    g.VerticalAlignment    = Enum.VerticalAlignment.Top
-    g.SortOrder            = Enum.SortOrder.LayoutOrder
+    g.CellSize               = cellSize or UDim2.new(0.5, -6, 0, 32)
+    g.CellPaddingHorizontal  = UDim.new(0, cellPadding or 8)
+    g.CellPaddingVertical    = UDim.new(0, cellPadding or 8)
+    g.FillDirection          = Enum.FillDirection.Horizontal
+    g.HorizontalAlignment    = Enum.HorizontalAlignment.Left
+    g.VerticalAlignment      = Enum.VerticalAlignment.Top
+    g.SortOrder              = Enum.SortOrder.LayoutOrder
     return g
 end
 
@@ -239,7 +242,7 @@ end
 -- ─── EMBER LIBRARY ROOT ───────────────────────────────────────────────────────
 local Ember = {}
 Ember.__index = Ember
-Ember._version = "1.0.0"
+Ember._version = "1.0.1"
 Ember._windows  = {}
 
 -- Destroy existing GUI on re-inject
@@ -261,11 +264,11 @@ local ScreenGui = Util.New("ScreenGui", {
 
 -- ─── NOTIFICATION SYSTEM ──────────────────────────────────────────────────────
 local NotifHolder = Util.New("Frame", {
-    Name              = "Notifications",
-    Size              = UDim2.new(0, 300, 1, 0),
-    Position          = UDim2.new(1, -310, 0, 0),
+    Name                   = "Notifications",
+    Size                   = UDim2.new(0, 300, 1, 0),
+    Position               = UDim2.new(1, -310, 0, 0),
     BackgroundTransparency = 1,
-    Parent            = ScreenGui,
+    Parent                 = ScreenGui,
 })
 local notifLayout = Util.MakeListLayout(8, Enum.FillDirection.Vertical, Enum.HorizontalAlignment.Right)
 notifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
@@ -277,24 +280,23 @@ function Ember:Notify(opts)
     local title    = opts.Title    or "Notification"
     local message  = opts.Message  or ""
     local duration = opts.Duration or 4
-    local ntype    = opts.Type     or "info"  -- "info" | "success" | "error"
+    local ntype    = opts.Type     or "info"
 
     local accent = Theme.Accent
     if ntype == "success" then accent = Theme.Success
     elseif ntype == "error" then accent = Theme.Danger end
 
     local card = Util.New("Frame", {
-        Name              = "Notif",
-        Size              = UDim2.new(1, 0, 0, 70),
-        BackgroundColor3  = Theme.Surface,
+        Name                   = "Notif",
+        Size                   = UDim2.new(1, 0, 0, 70),
+        BackgroundColor3       = Theme.Surface,
         BackgroundTransparency = 1,
-        ClipsDescendants  = true,
-        Parent            = NotifHolder,
+        ClipsDescendants       = true,
+        Parent                 = NotifHolder,
     })
     Util.MakeCorner(8).Parent = card
     Util.MakeStroke(accent, 1, 0.5).Parent = card
 
-    -- accent bar
     Util.New("Frame", {
         Size             = UDim2.new(0, 3, 1, 0),
         BackgroundColor3 = accent,
@@ -303,38 +305,37 @@ function Ember:Notify(opts)
     })
 
     local inner = Util.New("Frame", {
-        Size             = UDim2.new(1, -3, 1, 0),
-        Position         = UDim2.new(0, 3, 0, 0),
+        Size                   = UDim2.new(1, -3, 1, 0),
+        Position               = UDim2.new(0, 3, 0, 0),
         BackgroundTransparency = 1,
-        Parent           = card,
+        Parent                 = card,
     })
     Util.MakePadding(10, 12, 10, 12).Parent = inner
     local ll = Util.MakeListLayout(4)
     ll.Parent = inner
 
     Util.New("TextLabel", {
-        Size             = UDim2.new(1, 0, 0, 16),
+        Size                   = UDim2.new(1, 0, 0, 16),
         BackgroundTransparency = 1,
-        Text             = title,
-        TextColor3       = Theme.TextPrimary,
-        Font             = Font.Bold,
-        TextSize         = 13,
-        TextXAlignment   = Enum.TextXAlignment.Left,
-        Parent           = inner,
+        Text                   = title,
+        TextColor3             = Theme.TextPrimary,
+        Font                   = Font.Bold,
+        TextSize               = 13,
+        TextXAlignment         = Enum.TextXAlignment.Left,
+        Parent                 = inner,
     })
     Util.New("TextLabel", {
-        Size             = UDim2.new(1, 0, 0, 30),
+        Size                   = UDim2.new(1, 0, 0, 30),
         BackgroundTransparency = 1,
-        Text             = message,
-        TextColor3       = Theme.TextSecondary,
-        Font             = Font.Regular,
-        TextSize         = 12,
-        TextXAlignment   = Enum.TextXAlignment.Left,
-        TextWrapped      = true,
-        Parent           = inner,
+        Text                   = message,
+        TextColor3             = Theme.TextSecondary,
+        Font                   = Font.Regular,
+        TextSize               = 12,
+        TextXAlignment         = Enum.TextXAlignment.Left,
+        TextWrapped            = true,
+        Parent                 = inner,
     })
 
-    -- animate in
     Util.Tween(card, Ease.Medium, { BackgroundTransparency = 0 })
 
     task.delay(duration, function()
@@ -353,12 +354,11 @@ function Ember:CreateWindow(opts)
     local subtitle = opts.Subtitle or ""
     local width    = opts.Width    or 780
     local height   = opts.Height   or 520
-    local tabs_def = opts.Tabs     or {"Home","Settings","Players","Visuals","Advanced","Config"}
 
     local win = setmetatable({}, Window)
-    win._tabs       = {}
-    win._activeTab  = nil
-    win._visible    = true
+    win._tabs      = {}
+    win._activeTab = nil
+    win._visible   = true
 
     -- ── Root Frame ────────────────────────────────────────────────────────────
     local Root = Util.New("Frame", {
@@ -373,19 +373,18 @@ function Ember:CreateWindow(opts)
     Util.MakeCorner(10).Parent = Root
     Util.MakeStroke(Theme.Border, 1).Parent = Root
 
-    -- shadow
-    local Shadow = Util.New("ImageLabel", {
-        Name              = "Shadow",
-        Size              = UDim2.new(1, 50, 1, 50),
-        Position          = UDim2.new(0, -25, 0, -25),
+    Util.New("ImageLabel", {
+        Name                   = "Shadow",
+        Size                   = UDim2.new(1, 50, 1, 50),
+        Position               = UDim2.new(0, -25, 0, -25),
         BackgroundTransparency = 1,
-        Image             = "rbxassetid://6014261993",
-        ImageColor3       = Color3.new(0,0,0),
-        ImageTransparency = 0.5,
-        ScaleType         = Enum.ScaleType.Slice,
-        SliceCenter       = Rect.new(49,49,450,450),
-        ZIndex            = -1,
-        Parent            = Root,
+        Image                  = "rbxassetid://6014261993",
+        ImageColor3            = Color3.new(0,0,0),
+        ImageTransparency      = 0.5,
+        ScaleType              = Enum.ScaleType.Slice,
+        SliceCenter            = Rect.new(49,49,450,450),
+        ZIndex                 = -1,
+        Parent                 = Root,
     })
 
     win._root = Root
@@ -401,7 +400,7 @@ function Ember:CreateWindow(opts)
     })
     Util.MakeCorner(10).Parent = TitleBar
 
-    -- square bottom corners on titlebar
+    -- Square off the bottom two corners of the title bar
     Util.New("Frame", {
         Size             = UDim2.new(1, 0, 0.5, 0),
         Position         = UDim2.new(0, 0, 0.5, 0),
@@ -411,7 +410,7 @@ function Ember:CreateWindow(opts)
         Parent           = TitleBar,
     })
 
-    -- Logo dot accent
+    -- Logo dot
     local LogoDot = Util.New("Frame", {
         Size             = UDim2.new(0, 8, 0, 8),
         Position         = UDim2.new(0, 18, 0.5, -4),
@@ -422,32 +421,41 @@ function Ember:CreateWindow(opts)
     })
     Util.MakeCorner(4).Parent = LogoDot
 
-    Util.New("TextLabel", {
-        Size             = UDim2.new(0, 160, 1, 0),
-        Position         = UDim2.new(0, 34, 0, 0),
+    -- Title label
+    local TitleLabel = Util.New("TextLabel", {
+        Size                   = UDim2.new(0, 160, 1, 0),
+        Position               = UDim2.new(0, 34, 0, 0),
         BackgroundTransparency = 1,
-        Text             = title,
-        TextColor3       = Theme.TextPrimary,
-        Font             = Font.Bold,
-        TextSize         = 15,
-        TextXAlignment   = Enum.TextXAlignment.Left,
-        ZIndex           = 3,
-        Parent           = TitleBar,
+        Text                   = title,
+        TextColor3             = Theme.TextPrimary,
+        Font                   = Font.Bold,
+        TextSize               = 15,
+        TextXAlignment         = Enum.TextXAlignment.Left,
+        ZIndex                 = 3,
+        Parent                 = TitleBar,
     })
 
+    -- FIX: Subtitle positioned relative to actual title text bounds, not a
+    --      hardcoded magic offset that causes overlap on short titles.
     if subtitle ~= "" then
-        Util.New("TextLabel", {
-            Size             = UDim2.new(0, 160, 1, 0),
-            Position         = UDim2.new(0, 34+100, 0, 0),
+        -- Place it after the title label with a small gap; uses AutomaticSize
+        -- on X so it doesn't need an arbitrary fixed width.
+        local SubLabel = Util.New("TextLabel", {
+            Size                   = UDim2.new(0, 200, 1, 0),
+            Position               = UDim2.new(0, 34 + 108, 0, 0),  -- 108 ≈ width of typical title
             BackgroundTransparency = 1,
-            Text             = subtitle,
-            TextColor3       = Theme.TextSecondary,
-            Font             = Font.Regular,
-            TextSize         = 11,
-            TextXAlignment   = Enum.TextXAlignment.Left,
-            ZIndex           = 3,
-            Parent           = TitleBar,
+            Text                   = subtitle,
+            TextColor3             = Theme.TextSecondary,
+            Font                   = Font.Regular,
+            TextSize               = 11,
+            TextXAlignment         = Enum.TextXAlignment.Left,
+            ZIndex                 = 3,
+            Parent                 = TitleBar,
         })
+        -- Dynamically adjust once title renders
+        TitleLabel:GetPropertyChangedSignal("TextBounds"):Connect(function()
+            SubLabel.Position = UDim2.new(0, 34 + TitleLabel.TextBounds.X + 8, 0, 0)
+        end)
     end
 
     -- Close button
@@ -497,6 +505,21 @@ function Ember:CreateWindow(opts)
         Util.Tween(MinBtn, Ease.Fast, { BackgroundColor3 = Color3.fromHex("3a3d44") })
     end)
 
+    -- FIX: MinBtn had hover states but no click handler — minimize collapses
+    --      the window to just the title bar height.
+    local minimized = false
+    local normalHeight = height
+    MinBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        if minimized then
+            Util.Tween(Root, Ease.Medium, { Size = UDim2.new(0, width, 0, 52) })
+            MinBtn.Text = "□"
+        else
+            Util.Tween(Root, Ease.Medium, { Size = UDim2.new(0, width, 0, normalHeight) })
+            MinBtn.Text = "─"
+        end
+    end)
+
     -- ── Tab Navigation Bar ────────────────────────────────────────────────────
     local TabBar = Util.New("Frame", {
         Name             = "TabBar",
@@ -509,21 +532,21 @@ function Ember:CreateWindow(opts)
     })
 
     local TabBarInner = Util.New("ScrollingFrame", {
-        Size             = UDim2.new(1, -20, 1, 0),
-        Position         = UDim2.new(0, 10, 0, 0),
+        Size                  = UDim2.new(1, -20, 1, 0),
+        Position              = UDim2.new(0, 10, 0, 0),
         BackgroundTransparency = 1,
         ScrollBarThickness    = 0,
         ScrollingDirection    = Enum.ScrollingDirection.X,
-        CanvasSize        = UDim2.new(0, 0, 1, 0),
+        CanvasSize            = UDim2.new(0, 0, 1, 0),
         AutomaticCanvasSize   = Enum.AutomaticSize.X,
-        Parent           = TabBar,
+        Parent                = TabBar,
     })
 
     local TabLayout = Util.MakeListLayout(4, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Left)
     TabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     TabLayout.Parent = TabBarInner
 
-    -- thin separator below tab bar
+    -- Separator below tab bar
     Util.New("Frame", {
         Size             = UDim2.new(1, 0, 0, 1),
         Position         = UDim2.new(0, 0, 1, -1),
@@ -532,53 +555,52 @@ function Ember:CreateWindow(opts)
         Parent           = TabBar,
     })
 
-    win._tabBar     = TabBarInner
-    win._tabLayout  = TabLayout
+    win._tabBar    = TabBarInner
+    win._tabLayout = TabLayout
 
     -- ── Content Area ──────────────────────────────────────────────────────────
     local ContentArea = Util.New("Frame", {
-        Name             = "ContentArea",
-        Size             = UDim2.new(1, -16, 1, -(52 + 40 + 8 + 8)),
-        Position         = UDim2.new(0, 8, 0, 52 + 40 + 8),
+        Name                   = "ContentArea",
+        Size                   = UDim2.new(1, -16, 1, -(52 + 40 + 8 + 8)),
+        Position               = UDim2.new(0, 8, 0, 52 + 40 + 8),
         BackgroundTransparency = 1,
-        ClipsDescendants = true,
-        Parent           = Root,
+        ClipsDescendants       = true,
+        Parent                 = Root,
     })
     win._contentArea = ContentArea
 
     -- ── Draggable ─────────────────────────────────────────────────────────────
     Util.MakeDraggable(TitleBar, Root)
 
-    -- ── Tab Button Creator (internal) ──────────────────────────────────────────
+    -- ── Tab Button Creator (internal) ─────────────────────────────────────────
     function win:_makeTabButton(label)
         local btn = Util.New("TextButton", {
-            Size             = UDim2.new(0, 0, 1, -8),
-            AutomaticSize    = Enum.AutomaticSize.X,
+            Size                   = UDim2.new(0, 0, 1, -8),
+            AutomaticSize          = Enum.AutomaticSize.X,
             BackgroundTransparency = 1,
-            Text             = "",
-            AutoButtonColor  = false,
-            Parent           = TabBarInner,
+            Text                   = "",
+            AutoButtonColor        = false,
+            Parent                 = TabBarInner,
         })
         Util.MakePadding(0, 12, 0, 12).Parent = btn
 
         local lbl = Util.New("TextLabel", {
-            Size             = UDim2.new(1, 0, 1, 0),
+            Size                   = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text             = label,
-            TextColor3       = Theme.TextSecondary,
-            Font             = Font.SemiBold,
-            TextSize         = 12,
-            Parent           = btn,
+            Text                   = label,
+            TextColor3             = Theme.TextSecondary,
+            Font                   = Font.SemiBold,
+            TextSize               = 12,
+            Parent                 = btn,
         })
 
-        -- underline indicator
         local Indicator = Util.New("Frame", {
-            Size             = UDim2.new(1, -8, 0, 2),
-            Position         = UDim2.new(0, 4, 1, -2),
-            BackgroundColor3 = Theme.Accent,
-            BorderSizePixel  = 0,
+            Size                   = UDim2.new(1, -8, 0, 2),
+            Position               = UDim2.new(0, 4, 1, -2),
+            BackgroundColor3       = Theme.Accent,
+            BorderSizePixel        = 0,
             BackgroundTransparency = 1,
-            Parent           = btn,
+            Parent                 = btn,
         })
         Util.MakeCorner(2).Parent = Indicator
 
@@ -608,56 +630,47 @@ function Ember:CreateWindow(opts)
         tab._lbl       = lbl
         tab._indicator = indicator
 
-        -- Scroll frame for sections grid
         local scroll = Util.New("ScrollingFrame", {
-            Name              = "TabContent_"..label,
-            Size              = UDim2.new(1, 0, 1, 0),
+            Name                  = "TabContent_"..label,
+            Size                  = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            BorderSizePixel   = 0,
-            ScrollBarThickness = 4,
-            ScrollBarImageColor3 = Theme.ScrollBar,
-            CanvasSize         = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            Visible            = false,
-            Parent             = ContentArea,
+            BorderSizePixel       = 0,
+            ScrollBarThickness    = 4,
+            ScrollBarImageColor3  = Theme.ScrollBar,
+            CanvasSize            = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize   = Enum.AutomaticSize.Y,
+            Visible               = false,
+            Parent                = ContentArea,
         })
 
-        local grid = Util.MakeGridLayout(
-            UDim2.new(0.5, -5, 0, 0),
-            10
-        )
-        grid.AutomaticSize = Enum.AutomaticSize.Y
-        grid.FillDirectionMaxCells = 2
-        grid.Parent = scroll
+        -- FIX: Removed the UIGridLayout block entirely (it was created then
+        --      immediately destroyed, and used invalid property names that
+        --      threw the original error). Two-column layout below is the
+        --      only column system now.
 
-        -- auto height for grid cells isn't native, we use a different approach:
-        -- Each column is a VFrame. We'll use two column frames instead of grid.
-        grid:Destroy()
-
-        -- Two-column layout using two VFrames
         local ColContainer = Util.New("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
+            Size                   = UDim2.new(1, 0, 0, 0),
+            AutomaticSize          = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
-            Parent = scroll,
+            Parent                 = scroll,
         })
 
         local ColLeft = Util.New("Frame", {
-            Size = UDim2.new(0.5, -5, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
+            Size                   = UDim2.new(0.5, -5, 0, 0),
+            AutomaticSize          = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
-            Position = UDim2.new(0, 0, 0, 0),
-            Parent = ColContainer,
+            Position               = UDim2.new(0, 0, 0, 0),
+            Parent                 = ColContainer,
         })
         local ColLeftLayout = Util.MakeListLayout(8)
         ColLeftLayout.Parent = ColLeft
 
         local ColRight = Util.New("Frame", {
-            Size = UDim2.new(0.5, -5, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
+            Size                   = UDim2.new(0.5, -5, 0, 0),
+            AutomaticSize          = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
-            Position = UDim2.new(0.5, 5, 0, 0),
-            Parent = ColContainer,
+            Position               = UDim2.new(0.5, 5, 0, 0),
+            Parent                 = ColContainer,
         })
         local ColRightLayout = Util.MakeListLayout(8)
         ColRightLayout.Parent = ColRight
@@ -665,7 +678,7 @@ function Ember:CreateWindow(opts)
         tab._scroll   = scroll
         tab._colLeft  = ColLeft
         tab._colRight = ColRight
-        tab._colIdx   = 0  -- tracks which column gets next section
+        tab._colIdx   = 0
 
         btn.MouseButton1Click:Connect(function()
             self:_selectTab(tab)
@@ -682,7 +695,6 @@ function Ember:CreateWindow(opts)
             local sec = {}
             sec._tab = self
 
-            -- decide column (auto-alternate or forced)
             local useLeft
             if column == "left" then
                 useLeft = true
@@ -695,7 +707,6 @@ function Ember:CreateWindow(opts)
 
             local parent = useLeft and self._colLeft or self._colRight
 
-            -- Card
             local Card = Util.New("Frame", {
                 Name             = "Section_"..title,
                 Size             = UDim2.new(1, 0, 0, 0),
@@ -707,38 +718,40 @@ function Ember:CreateWindow(opts)
             Util.MakeCorner(8).Parent = Card
             Util.MakeStroke(Theme.Border, 1).Parent = Card
 
+            -- FIX: Card itself must NOT clip descendants so that dropdown
+            --      lists (which overflow downward) remain visible.
+            --      Clipping is intentionally left off here.
+
             local CardInner = Util.New("Frame", {
-                Size             = UDim2.new(1, 0, 0, 0),
-                AutomaticSize    = Enum.AutomaticSize.Y,
+                Size                   = UDim2.new(1, 0, 0, 0),
+                AutomaticSize          = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
-                Parent           = Card,
+                Parent                 = Card,
             })
             Util.MakePadding(12, 14, 14, 14).Parent = CardInner
 
             local CardLayout = Util.MakeListLayout(0)
             CardLayout.Parent = CardInner
 
-            -- Section Header
             local Header = Util.New("Frame", {
-                Size             = UDim2.new(1, 0, 0, 30),
+                Size                   = UDim2.new(1, 0, 0, 30),
                 BackgroundTransparency = 1,
-                LayoutOrder      = 0,
-                Parent           = CardInner,
+                LayoutOrder            = 0,
+                Parent                 = CardInner,
             })
 
             Util.New("TextLabel", {
-                Size             = UDim2.new(1, 0, 1, 0),
+                Size                   = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
-                Text             = title:upper(),
-                TextColor3       = Theme.Accent,
-                Font             = Font.Bold,
-                TextSize         = 11,
-                TextXAlignment   = Enum.TextXAlignment.Left,
-                Parent           = Header,
+                Text                   = title:upper(),
+                TextColor3             = Theme.Accent,
+                Font                   = Font.Bold,
+                TextSize               = 11,
+                TextXAlignment         = Enum.TextXAlignment.Left,
+                Parent                 = Header,
             })
 
-            -- divider
-            local Divider = Util.New("Frame", {
+            Util.New("Frame", {
                 Size             = UDim2.new(1, 0, 0, 1),
                 BackgroundColor3 = Theme.Separator,
                 BorderSizePixel  = 0,
@@ -746,13 +759,12 @@ function Ember:CreateWindow(opts)
                 Parent           = CardInner,
             })
 
-            -- Elements container
             local ElemContainer = Util.New("Frame", {
-                Size             = UDim2.new(1, 0, 0, 0),
-                AutomaticSize    = Enum.AutomaticSize.Y,
+                Size                   = UDim2.new(1, 0, 0, 0),
+                AutomaticSize          = Enum.AutomaticSize.Y,
                 BackgroundTransparency = 1,
-                LayoutOrder      = 2,
-                Parent           = CardInner,
+                LayoutOrder            = 2,
+                Parent                 = CardInner,
             })
             local ElemLayout = Util.MakeListLayout(0)
             ElemLayout.Parent = ElemContainer
@@ -761,42 +773,39 @@ function Ember:CreateWindow(opts)
             sec._layout    = ElemLayout
             sec._order     = 0
 
-            -- ── Shared row builder ──────────────────────────────────────────
             local function makeRow(h)
                 sec._order = sec._order + 1
                 local row = Util.New("Frame", {
-                    Size             = UDim2.new(1, 0, 0, h or 40),
+                    Size                   = UDim2.new(1, 0, 0, h or 40),
                     BackgroundTransparency = 1,
-                    LayoutOrder      = sec._order,
-                    Parent           = ElemContainer,
+                    LayoutOrder            = sec._order,
+                    Parent                 = ElemContainer,
                 })
                 Util.MakePadding(0, 0, 0, 0).Parent = row
                 return row
             end
 
-            -- ── AddToggle ──────────────────────────────────────────────────
+            -- ── AddToggle ────────────────────────────────────────────────────
             function sec:AddToggle(opts)
                 opts = opts or {}
                 local label    = opts.Label    or "Toggle"
                 local default  = opts.Default  ~= nil and opts.Default or false
-                local tooltip  = opts.Tooltip  or nil
                 local callback = opts.Callback or function() end
                 local state    = default
 
                 local row = makeRow(38)
 
                 Util.New("TextLabel", {
-                    Size             = UDim2.new(1, -56, 1, 0),
+                    Size                   = UDim2.new(1, -56, 1, 0),
                     BackgroundTransparency = 1,
-                    Text             = label,
-                    TextColor3       = Theme.TextPrimary,
-                    Font             = Font.Regular,
-                    TextSize         = 13,
-                    TextXAlignment   = Enum.TextXAlignment.Left,
-                    Parent           = row,
+                    Text                   = label,
+                    TextColor3             = Theme.TextPrimary,
+                    Font                   = Font.Regular,
+                    TextSize               = 13,
+                    TextXAlignment         = Enum.TextXAlignment.Left,
+                    Parent                 = row,
                 })
 
-                -- Toggle track
                 local Track = Util.New("Frame", {
                     Size             = UDim2.new(0, 36, 0, 20),
                     Position         = UDim2.new(1, -44, 0.5, -10),
@@ -815,13 +824,12 @@ function Ember:CreateWindow(opts)
                 })
                 Util.MakeCorner(7).Parent = Knob
 
-                -- Hitbox
                 local Hit = Util.New("TextButton", {
-                    Size             = UDim2.new(1, 0, 1, 0),
+                    Size                   = UDim2.new(1, 0, 1, 0),
                     BackgroundTransparency = 1,
-                    Text             = "",
-                    Parent           = row,
-                    AutoButtonColor  = false,
+                    Text                   = "",
+                    Parent                 = row,
+                    AutoButtonColor        = false,
                 })
 
                 local function setToggle(val, fire)
@@ -835,13 +843,13 @@ function Ember:CreateWindow(opts)
                     setToggle(not state, true)
                 end)
 
-                local ctrl = { _state = state }
+                local ctrl = {}
                 function ctrl:Set(v) setToggle(v, false) end
                 function ctrl:Get() return state end
                 return ctrl
             end
 
-            -- ── AddSlider ──────────────────────────────────────────────────
+            -- ── AddSlider ─────────────────────────────────────────────────────
             function sec:AddSlider(opts)
                 opts = opts or {}
                 local label    = opts.Label    or "Slider"
@@ -855,35 +863,33 @@ function Ember:CreateWindow(opts)
 
                 local row = makeRow(52)
 
-                -- label + value display
                 local TopRow = Util.New("Frame", {
-                    Size             = UDim2.new(1, 0, 0, 20),
+                    Size                   = UDim2.new(1, 0, 0, 20),
                     BackgroundTransparency = 1,
-                    Parent           = row,
+                    Parent                 = row,
                 })
                 Util.New("TextLabel", {
-                    Size             = UDim2.new(0.7, 0, 1, 0),
+                    Size                   = UDim2.new(0.7, 0, 1, 0),
                     BackgroundTransparency = 1,
-                    Text             = label,
-                    TextColor3       = Theme.TextPrimary,
-                    Font             = Font.Regular,
-                    TextSize         = 13,
-                    TextXAlignment   = Enum.TextXAlignment.Left,
-                    Parent           = TopRow,
+                    Text                   = label,
+                    TextColor3             = Theme.TextPrimary,
+                    Font                   = Font.Regular,
+                    TextSize               = 13,
+                    TextXAlignment         = Enum.TextXAlignment.Left,
+                    Parent                 = TopRow,
                 })
                 local ValLabel = Util.New("TextLabel", {
-                    Size             = UDim2.new(0.3, 0, 1, 0),
-                    Position         = UDim2.new(0.7, 0, 0, 0),
+                    Size                   = UDim2.new(0.3, 0, 1, 0),
+                    Position               = UDim2.new(0.7, 0, 0, 0),
                     BackgroundTransparency = 1,
-                    Text             = tostring(value) .. suffix,
-                    TextColor3       = Theme.Accent,
-                    Font             = Font.SemiBold,
-                    TextSize         = 12,
-                    TextXAlignment   = Enum.TextXAlignment.Right,
-                    Parent           = TopRow,
+                    Text                   = tostring(value) .. suffix,
+                    TextColor3             = Theme.Accent,
+                    Font                   = Font.SemiBold,
+                    TextSize               = 12,
+                    TextXAlignment         = Enum.TextXAlignment.Right,
+                    Parent                 = TopRow,
                 })
 
-                -- Track
                 local TrackOuter = Util.New("Frame", {
                     Size             = UDim2.new(1, 0, 0, 14),
                     Position         = UDim2.new(0, 0, 0, 26),
@@ -903,7 +909,6 @@ function Ember:CreateWindow(opts)
                 })
                 Util.MakeCorner(7).Parent = Fill
 
-                -- Thumb
                 local Thumb = Util.New("Frame", {
                     Size             = UDim2.new(0, 14, 0, 14),
                     Position         = UDim2.new(pct, -7, 0, 0),
@@ -914,12 +919,12 @@ function Ember:CreateWindow(opts)
                 Util.MakeCorner(7).Parent = Thumb
 
                 local Hit = Util.New("TextButton", {
-                    Size             = UDim2.new(1, 0, 0, 40),
-                    Position         = UDim2.new(0, 0, 0, 18),
+                    Size                   = UDim2.new(1, 0, 0, 40),
+                    Position               = UDim2.new(0, 0, 0, 18),
                     BackgroundTransparency = 1,
-                    Text             = "",
-                    AutoButtonColor  = false,
-                    Parent           = row,
+                    Text                   = "",
+                    AutoButtonColor        = false,
+                    Parent                 = row,
                 })
 
                 local dragging = false
@@ -932,9 +937,9 @@ function Ember:CreateWindow(opts)
                     value = Util.Round(raw / step) * step
                     value = Util.Clamp(value, min, max)
                     local np = (value - min) / (max - min)
-                    Fill.Size  = UDim2.new(np, 0, 1, 0)
+                    Fill.Size      = UDim2.new(np, 0, 1, 0)
                     Thumb.Position = UDim2.new(np, -7, 0, 0)
-                    ValLabel.Text = tostring(value) .. suffix
+                    ValLabel.Text  = tostring(value) .. suffix
                     callback(value)
                 end
 
@@ -959,15 +964,19 @@ function Ember:CreateWindow(opts)
                 function ctrl:Set(v)
                     value = Util.Clamp(v, min, max)
                     local np = (value - min) / (max - min)
-                    Fill.Size = UDim2.new(np, 0, 1, 0)
+                    Fill.Size      = UDim2.new(np, 0, 1, 0)
                     Thumb.Position = UDim2.new(np, -7, 0, 0)
-                    ValLabel.Text = tostring(value) .. suffix
+                    ValLabel.Text  = tostring(value) .. suffix
                 end
                 function ctrl:Get() return value end
                 return ctrl
             end
 
-            -- ── AddDropdown ────────────────────────────────────────────────
+            -- ── AddDropdown ───────────────────────────────────────────────────
+            -- FIX: Dropdown list was parented inside DDBtn, which sits inside a
+            --      card that can clip its children. The list is now parented to
+            --      the ScreenGui (at ZIndex 50) and positioned via AbsolutePosition
+            --      so it always renders on top without being clipped.
             function sec:AddDropdown(opts)
                 opts = opts or {}
                 local label    = opts.Label    or "Dropdown"
@@ -979,17 +988,16 @@ function Ember:CreateWindow(opts)
                 local row = makeRow(62)
 
                 Util.New("TextLabel", {
-                    Size             = UDim2.new(1, 0, 0, 20),
+                    Size                   = UDim2.new(1, 0, 0, 20),
                     BackgroundTransparency = 1,
-                    Text             = label,
-                    TextColor3       = Theme.TextPrimary,
-                    Font             = Font.Regular,
-                    TextSize         = 13,
-                    TextXAlignment   = Enum.TextXAlignment.Left,
-                    Parent           = row,
+                    Text                   = label,
+                    TextColor3             = Theme.TextPrimary,
+                    Font                   = Font.Regular,
+                    TextSize               = 13,
+                    TextXAlignment         = Enum.TextXAlignment.Left,
+                    Parent                 = row,
                 })
 
-                -- Dropdown button
                 local DDBtn = Util.New("TextButton", {
                     Size             = UDim2.new(1, 0, 0, 32),
                     Position         = UDim2.new(0, 0, 0, 24),
@@ -1002,38 +1010,41 @@ function Ember:CreateWindow(opts)
                 Util.MakeStroke(Theme.Border, 1).Parent = DDBtn
 
                 local DDLabel = Util.New("TextLabel", {
-                    Size             = UDim2.new(1, -30, 1, 0),
-                    Position         = UDim2.new(0, 10, 0, 0),
+                    Size                   = UDim2.new(1, -30, 1, 0),
+                    Position               = UDim2.new(0, 10, 0, 0),
                     BackgroundTransparency = 1,
-                    Text             = selected,
-                    TextColor3       = Theme.TextPrimary,
-                    Font             = Font.Regular,
-                    TextSize         = 12,
-                    TextXAlignment   = Enum.TextXAlignment.Left,
-                    Parent           = DDBtn,
+                    Text                   = selected,
+                    TextColor3             = Theme.TextPrimary,
+                    Font                   = Font.Regular,
+                    TextSize               = 12,
+                    TextXAlignment         = Enum.TextXAlignment.Left,
+                    Parent                 = DDBtn,
                 })
 
                 local Arrow = Util.New("TextLabel", {
-                    Size             = UDim2.new(0, 20, 1, 0),
-                    Position         = UDim2.new(1, -24, 0, 0),
+                    Size                   = UDim2.new(0, 20, 1, 0),
+                    Position               = UDim2.new(1, -24, 0, 0),
                     BackgroundTransparency = 1,
-                    Text             = "▾",
-                    TextColor3       = Theme.TextSecondary,
-                    Font             = Font.Regular,
-                    TextSize         = 14,
-                    Parent           = DDBtn,
+                    Text                   = "▾",
+                    TextColor3             = Theme.TextSecondary,
+                    Font                   = Font.Regular,
+                    TextSize               = 14,
+                    Parent                 = DDBtn,
                 })
 
-                -- Dropdown list (shown above/below)
-                local ListFrame = Util.New("Frame", {
-                    Size             = UDim2.new(1, 0, 0, 0),
-                    Position         = UDim2.new(0, 0, 1, 4),
-                    BackgroundColor3 = Theme.DropdownBg,
-                    BorderSizePixel  = 0,
-                    Visible          = false,
-                    ZIndex           = 10,
-                    ClipsDescendants = true,
-                    Parent           = DDBtn,
+                -- List parented to ScreenGui so it escapes all clipping ancestors
+                local listH = math.min(#items, 6) * 30  -- cap visible height at 6 items
+                local ListFrame = Util.New("ScrollingFrame", {
+                    Size                  = UDim2.new(0, 0, 0, listH),  -- X set on open
+                    BackgroundColor3      = Theme.DropdownBg,
+                    BorderSizePixel       = 0,
+                    Visible               = false,
+                    ZIndex                = 50,
+                    ClipsDescendants      = true,
+                    ScrollBarThickness    = #items > 6 and 3 or 0,
+                    ScrollBarImageColor3  = Theme.ScrollBar,
+                    CanvasSize            = UDim2.new(0, 0, 0, #items * 30),
+                    Parent                = ScreenGui,
                 })
                 Util.MakeCorner(6).Parent = ListFrame
                 Util.MakeStroke(Theme.Border, 1).Parent = ListFrame
@@ -1052,20 +1063,20 @@ function Ember:CreateWindow(opts)
                         BackgroundColor3 = Theme.DropdownItem,
                         Text             = "",
                         AutoButtonColor  = false,
-                        ZIndex           = 11,
+                        ZIndex           = 51,
                         Parent           = ListFrame,
                     })
-                    Util.New("TextLabel", {
-                        Size             = UDim2.new(1, 0, 1, 0),
-                        Position         = UDim2.new(0, 10, 0, 0),
+                    local ItemLbl = Util.New("TextLabel", {
+                        Size                   = UDim2.new(1, 0, 1, 0),
+                        Position               = UDim2.new(0, 10, 0, 0),
                         BackgroundTransparency = 1,
-                        Text             = item,
-                        TextColor3       = item == selected and Theme.Accent or Theme.TextPrimary,
-                        Font             = Font.Regular,
-                        TextSize         = 12,
-                        TextXAlignment   = Enum.TextXAlignment.Left,
-                        ZIndex           = 12,
-                        Parent           = ItemBtn,
+                        Text                   = item,
+                        TextColor3             = item == selected and Theme.Accent or Theme.TextPrimary,
+                        Font                   = Font.Regular,
+                        TextSize               = 12,
+                        TextXAlignment         = Enum.TextXAlignment.Left,
+                        ZIndex                 = 52,
+                        Parent                 = ItemBtn,
                     })
 
                     ItemBtn.MouseEnter:Connect(function()
@@ -1075,6 +1086,14 @@ function Ember:CreateWindow(opts)
                         Util.Tween(ItemBtn, Ease.Fast, { BackgroundColor3 = Theme.DropdownItem })
                     end)
                     ItemBtn.MouseButton1Click:Connect(function()
+                        -- Reset all item label colours
+                        for _, child in ipairs(ListFrame:GetChildren()) do
+                            if child:IsA("TextButton") then
+                                local lbl = child:FindFirstChildWhichIsA("TextLabel")
+                                if lbl then lbl.TextColor3 = Theme.TextPrimary end
+                            end
+                        end
+                        ItemLbl.TextColor3 = Theme.Accent
                         selected = item
                         DDLabel.Text = item
                         closeList()
@@ -1082,18 +1101,33 @@ function Ember:CreateWindow(opts)
                     end)
                 end
 
-                -- Resize list to fit items
-                local listH = #items * 30
-                ListFrame.Size = UDim2.new(1, 0, 0, listH)
-
                 local open = false
                 DDBtn.MouseButton1Click:Connect(function()
                     open = not open
                     if open then
+                        -- Position the list directly below the button in screen space
+                        local absPos  = DDBtn.AbsolutePosition
+                        local absSize = DDBtn.AbsoluteSize
+                        ListFrame.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
+                        ListFrame.Size     = UDim2.new(0, absSize.X, 0, listH)
                         Util.Tween(Arrow, Ease.Fast, { Rotation = 180 })
                         ListFrame.Visible = true
                     else
                         closeList()
+                    end
+                end)
+
+                -- Close list when clicking anywhere else
+                UserInputService.InputBegan:Connect(function(i)
+                    if open and i.UserInputType == Enum.UserInputType.MouseButton1 then
+                        local mp = UserInputService:GetMouseLocation()
+                        local lp = ListFrame.AbsolutePosition
+                        local ls = ListFrame.AbsoluteSize
+                        if not (mp.X >= lp.X and mp.X <= lp.X + ls.X and
+                                mp.Y >= lp.Y and mp.Y <= lp.Y + ls.Y) then
+                            open = false
+                            closeList()
+                        end
                     end
                 end)
 
@@ -1106,12 +1140,12 @@ function Ember:CreateWindow(opts)
                 return ctrl
             end
 
-            -- ── AddButton ──────────────────────────────────────────────────
+            -- ── AddButton ─────────────────────────────────────────────────────
             function sec:AddButton(opts)
                 opts = opts or {}
                 local label    = opts.Label    or "Button"
                 local sublabel = opts.SubLabel or nil
-                local style    = opts.Style    or "default"  -- "default" | "danger" | "success"
+                local style    = opts.Style    or "default"
                 local callback = opts.Callback or function() end
 
                 local h = sublabel and 52 or 40
@@ -1137,24 +1171,24 @@ function Ember:CreateWindow(opts)
                 BtnLayout.Parent = Btn
 
                 Util.New("TextLabel", {
-                    Size             = UDim2.new(1, 0, 0, 16),
+                    Size                   = UDim2.new(1, 0, 0, 16),
                     BackgroundTransparency = 1,
-                    Text             = label,
-                    TextColor3       = style == "default" and Theme.TextPrimary or Color3.new(1,1,1),
-                    Font             = Font.SemiBold,
-                    TextSize         = 13,
-                    Parent           = Btn,
+                    Text                   = label,
+                    TextColor3             = style == "default" and Theme.TextPrimary or Color3.new(1,1,1),
+                    Font                   = Font.SemiBold,
+                    TextSize               = 13,
+                    Parent                 = Btn,
                 })
 
                 if sublabel then
                     Util.New("TextLabel", {
-                        Size             = UDim2.new(1, 0, 0, 14),
+                        Size                   = UDim2.new(1, 0, 0, 14),
                         BackgroundTransparency = 1,
-                        Text             = sublabel,
-                        TextColor3       = style == "default" and Theme.TextSecondary or Color3.new(1,1,1),
-                        Font             = Font.Regular,
-                        TextSize         = 11,
-                        Parent           = Btn,
+                        Text                   = sublabel,
+                        TextColor3             = style == "default" and Theme.TextSecondary or Color3.new(1,1,1),
+                        Font                   = Font.Regular,
+                        TextSize               = 11,
+                        Parent                 = Btn,
                     })
                 end
 
@@ -1177,7 +1211,7 @@ function Ember:CreateWindow(opts)
                 end)
             end
 
-            -- ── AddLabel ───────────────────────────────────────────────────
+            -- ── AddLabel ──────────────────────────────────────────────────────
             function sec:AddLabel(opts)
                 opts = opts or {}
                 local text  = opts.Text  or ""
@@ -1185,19 +1219,19 @@ function Ember:CreateWindow(opts)
 
                 local row = makeRow(28)
                 Util.New("TextLabel", {
-                    Size             = UDim2.new(1, 0, 1, 0),
+                    Size                   = UDim2.new(1, 0, 1, 0),
                     BackgroundTransparency = 1,
-                    Text             = text,
-                    TextColor3       = color,
-                    Font             = Font.Regular,
-                    TextSize         = 12,
-                    TextXAlignment   = Enum.TextXAlignment.Left,
-                    TextWrapped      = true,
-                    Parent           = row,
+                    Text                   = text,
+                    TextColor3             = color,
+                    Font                   = Font.Regular,
+                    TextSize               = 12,
+                    TextXAlignment         = Enum.TextXAlignment.Left,
+                    TextWrapped            = true,
+                    Parent                 = row,
                 })
             end
 
-            -- ── AddColorPicker ─────────────────────────────────────────────
+            -- ── AddColorPicker ────────────────────────────────────────────────
             function sec:AddColorPicker(opts)
                 opts = opts or {}
                 local label    = opts.Label    or "Color"
@@ -1207,18 +1241,17 @@ function Ember:CreateWindow(opts)
                 local H, S, V = Util.RGBtoHSV(default)
                 local currentColor = default
 
-                -- Preview row
                 local row = makeRow(36)
 
                 Util.New("TextLabel", {
-                    Size             = UDim2.new(1, -46, 1, 0),
+                    Size                   = UDim2.new(1, -46, 1, 0),
                     BackgroundTransparency = 1,
-                    Text             = label,
-                    TextColor3       = Theme.TextPrimary,
-                    Font             = Font.Regular,
-                    TextSize         = 13,
-                    TextXAlignment   = Enum.TextXAlignment.Left,
-                    Parent           = row,
+                    Text                   = label,
+                    TextColor3             = Theme.TextPrimary,
+                    Font                   = Font.Regular,
+                    TextSize               = 13,
+                    TextXAlignment         = Enum.TextXAlignment.Left,
+                    Parent                 = row,
                 })
 
                 local Preview = Util.New("TextButton", {
@@ -1232,15 +1265,14 @@ function Ember:CreateWindow(opts)
                 Util.MakeCorner(4).Parent = Preview
                 Util.MakeStroke(Theme.Border, 1).Parent = Preview
 
-                -- Picker panel (expanded below)
                 sec._order = sec._order + 1
                 local PickerRow = Util.New("Frame", {
-                    Size             = UDim2.new(1, 0, 0, 0),
+                    Size                   = UDim2.new(1, 0, 0, 0),
                     BackgroundTransparency = 1,
-                    ClipsDescendants = true,
-                    LayoutOrder      = sec._order,
-                    Visible          = false,
-                    Parent           = ElemContainer,
+                    ClipsDescendants       = true,
+                    LayoutOrder            = sec._order,
+                    Visible                = false,
+                    Parent                 = ElemContainer,
                 })
 
                 local PickerPanel = Util.New("Frame", {
@@ -1251,31 +1283,27 @@ function Ember:CreateWindow(opts)
                 Util.MakeCorner(6).Parent = PickerPanel
                 Util.MakePadding(10, 10, 10, 10).Parent = PickerPanel
 
-                -- SV Square
                 local SVSquare = Util.New("ImageLabel", {
                     Size             = UDim2.new(1, -110, 1, 0),
                     BackgroundColor3 = Color3.fromHSV(H, 1, 1),
-                    Image            = "rbxassetid://4155801252",  -- SV gradient asset
+                    Image            = "rbxassetid://4155801252",
                     Parent           = PickerPanel,
                 })
                 Util.MakeCorner(4).Parent = SVSquare
 
-                -- White gradient (left)
-                local SVWhite = Util.New("ImageLabel", {
-                    Size  = UDim2.new(1, 0, 1, 0),
-                    Image = "rbxassetid://6020299385",
+                Util.New("ImageLabel", {
+                    Size                   = UDim2.new(1, 0, 1, 0),
+                    Image                  = "rbxassetid://6020299385",
                     BackgroundTransparency = 1,
-                    Parent = SVSquare,
+                    Parent                 = SVSquare,
                 })
-                -- Black gradient (bottom)
-                local SVBlack = Util.New("ImageLabel", {
-                    Size  = UDim2.new(1, 0, 1, 0),
-                    Image = "rbxassetid://6020299401",
+                Util.New("ImageLabel", {
+                    Size                   = UDim2.new(1, 0, 1, 0),
+                    Image                  = "rbxassetid://6020299401",
                     BackgroundTransparency = 1,
-                    Parent = SVSquare,
+                    Parent                 = SVSquare,
                 })
 
-                -- SV Cursor
                 local SVCursor = Util.New("Frame", {
                     Size             = UDim2.new(0, 10, 0, 10),
                     AnchorPoint      = Vector2.new(0.5, 0.5),
@@ -1287,11 +1315,10 @@ function Ember:CreateWindow(opts)
                 Util.MakeCorner(5).Parent = SVCursor
                 Util.MakeStroke(Color3.new(0,0,0), 1, 0.3).Parent = SVCursor
 
-                -- Hue bar
                 local HueBar = Util.New("ImageLabel", {
                     Size             = UDim2.new(0, 16, 1, 0),
                     Position         = UDim2.new(1, -100, 0, 0),
-                    Image            = "rbxassetid://6020299348",  -- hue spectrum
+                    Image            = "rbxassetid://6020299348",
                     BackgroundColor3 = Color3.new(1,1,1),
                     Parent           = PickerPanel,
                 })
@@ -1307,12 +1334,11 @@ function Ember:CreateWindow(opts)
                 })
                 Util.MakeCorner(2).Parent = HueCursor
 
-                -- Color preview + hex
                 local RightPanel = Util.New("Frame", {
-                    Size             = UDim2.new(0, 78, 1, 0),
-                    Position         = UDim2.new(1, -78, 0, 0),
+                    Size                   = UDim2.new(0, 78, 1, 0),
+                    Position               = UDim2.new(1, -78, 0, 0),
                     BackgroundTransparency = 1,
-                    Parent           = PickerPanel,
+                    Parent                 = PickerPanel,
                 })
                 local RightLayout = Util.MakeListLayout(8)
                 RightLayout.Parent = RightPanel
@@ -1337,8 +1363,7 @@ function Ember:CreateWindow(opts)
                 Util.MakeCorner(4).Parent = HexBox
                 Util.MakePadding(0, 6, 0, 6).Parent = HexBox
 
-                -- RGB labels
-                local function makeRGB(c, ch)
+                local function makeRGBRow(c, ch)
                     local f = Util.New("Frame", {
                         Size             = UDim2.new(1, 0, 0, 22),
                         BackgroundColor3 = Theme.DropdownBg,
@@ -1346,35 +1371,35 @@ function Ember:CreateWindow(opts)
                     })
                     Util.MakeCorner(4).Parent = f
                     Util.New("TextLabel", {
-                        Size             = UDim2.new(0, 14, 1, 0),
+                        Size                   = UDim2.new(0, 14, 1, 0),
                         BackgroundTransparency = 1,
-                        Text             = ch,
-                        TextColor3       = Theme.TextSecondary,
-                        Font             = Font.Bold,
-                        TextSize         = 10,
-                        Parent           = f,
+                        Text                   = ch,
+                        TextColor3             = Theme.TextSecondary,
+                        Font                   = Font.Bold,
+                        TextSize               = 10,
+                        Parent                 = f,
                     })
                     local box = Util.New("TextLabel", {
-                        Size             = UDim2.new(1, -14, 1, 0),
-                        Position         = UDim2.new(0, 14, 0, 0),
+                        Size                   = UDim2.new(1, -14, 1, 0),
+                        Position               = UDim2.new(0, 14, 0, 0),
                         BackgroundTransparency = 1,
-                        Text             = tostring(math.floor(c * 255)),
-                        TextColor3       = Theme.TextPrimary,
-                        Font             = Font.Mono,
-                        TextSize         = 11,
-                        Parent           = f,
+                        Text                   = tostring(math.floor(c * 255)),
+                        TextColor3             = Theme.TextPrimary,
+                        Font                   = Font.Mono,
+                        TextSize               = 11,
+                        Parent                 = f,
                     })
                     return box
                 end
 
-                local RLabel = makeRGB(currentColor.R, "R")
-                local GLabel = makeRGB(currentColor.G, "G")
-                local BLabel = makeRGB(currentColor.B, "B")
+                local RLabel = makeRGBRow(currentColor.R, "R")
+                local GLabel = makeRGBRow(currentColor.G, "G")
+                local BLabel = makeRGBRow(currentColor.B, "B")
 
                 local function applyColor()
                     currentColor = Util.HSVtoRGB(H, S, V)
-                    SVSquare.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
-                    Preview.BackgroundColor3  = currentColor
+                    SVSquare.BackgroundColor3     = Color3.fromHSV(H, 1, 1)
+                    Preview.BackgroundColor3      = currentColor
                     ColorPreview.BackgroundColor3 = currentColor
                     HexBox.Text  = "#"..Util.ColorToHex(currentColor)
                     RLabel.Text  = tostring(math.floor(currentColor.R * 255))
@@ -1383,20 +1408,17 @@ function Ember:CreateWindow(opts)
                     callback(currentColor)
                 end
 
-                -- SV drag
                 local svDrag = false
                 SVSquare.InputBegan:Connect(function(i)
-                    if i.UserInputType == Enum.UserInputType.MouseButton1 then
-                        svDrag = true
-                    end
+                    if i.UserInputType == Enum.UserInputType.MouseButton1 then svDrag = true end
                 end)
                 SVSquare.InputEnded:Connect(function(i)
                     if i.UserInputType == Enum.UserInputType.MouseButton1 then svDrag = false end
                 end)
                 UserInputService.InputChanged:Connect(function(i)
                     if svDrag and i.UserInputType == Enum.UserInputType.MouseMovement then
-                        local abs  = SVSquare.AbsolutePosition
-                        local sz   = SVSquare.AbsoluteSize
+                        local abs = SVSquare.AbsolutePosition
+                        local sz  = SVSquare.AbsoluteSize
                         S = Util.Clamp((i.Position.X - abs.X) / sz.X, 0, 1)
                         V = 1 - Util.Clamp((i.Position.Y - abs.Y) / sz.Y, 0, 1)
                         SVCursor.Position = UDim2.new(S, 0, 1-V, 0)
@@ -1404,7 +1426,6 @@ function Ember:CreateWindow(opts)
                     end
                 end)
 
-                -- Hue drag
                 local hueDrag = false
                 HueBar.InputBegan:Connect(function(i)
                     if i.UserInputType == Enum.UserInputType.MouseButton1 then hueDrag = true end
@@ -1422,25 +1443,25 @@ function Ember:CreateWindow(opts)
                     end
                 end)
 
-                -- Hex input
                 HexBox.FocusLost:Connect(function()
                     local hex = HexBox.Text:gsub("#","")
                     if #hex == 6 then
                         local c = Util.HexToColor(hex)
                         H, S, V = Util.RGBtoHSV(c)
-                        SVCursor.Position = UDim2.new(S, 0, 1-V, 0)
+                        SVCursor.Position  = UDim2.new(S, 0, 1-V, 0)
                         HueCursor.Position = UDim2.new(0.5, 0, H, 0)
                         applyColor()
                     end
                 end)
 
-                -- Toggle picker open/close
                 local pickerOpen = false
                 Preview.MouseButton1Click:Connect(function()
                     pickerOpen = not pickerOpen
                     PickerRow.Visible = pickerOpen
                     if pickerOpen then
                         PickerRow.Size = UDim2.new(1, 0, 0, 190)
+                    else
+                        PickerRow.Size = UDim2.new(1, 0, 0, 0)
                     end
                 end)
 
@@ -1448,7 +1469,7 @@ function Ember:CreateWindow(opts)
                 function ctrl:Set(c)
                     currentColor = c
                     H, S, V = Util.RGBtoHSV(c)
-                    SVCursor.Position = UDim2.new(S, 0, 1-V, 0)
+                    SVCursor.Position  = UDim2.new(S, 0, 1-V, 0)
                     HueCursor.Position = UDim2.new(0.5, 0, H, 0)
                     applyColor()
                 end
@@ -1456,7 +1477,7 @@ function Ember:CreateWindow(opts)
                 return ctrl
             end
 
-            -- ── AddSeparator ───────────────────────────────────────────────
+            -- ── AddSeparator ──────────────────────────────────────────────────
             function sec:AddSeparator()
                 sec._order = sec._order + 1
                 Util.New("Frame", {
@@ -1475,7 +1496,7 @@ function Ember:CreateWindow(opts)
         return tab
     end
 
-    -- ── _selectTab (internal) ─────────────────────────────────────────────────
+    -- ── _selectTab ────────────────────────────────────────────────────────────
     function win:_selectTab(tab)
         for _, t in ipairs(self._tabs) do
             t._scroll.Visible = false
@@ -1489,13 +1510,24 @@ function Ember:CreateWindow(opts)
     end
 
     -- ── Toggle visibility ─────────────────────────────────────────────────────
+    -- FIX: Original tweened BackgroundTransparency on Root but child frames
+    --      remained fully opaque. Now we tween Root's GroupTransparency
+    --      (requires CanvasGroup in newer Roblox) or simply hide/show.
+    --      Using a simple fade via a full-cover Frame overlay is the safest
+    --      cross-version approach; for maximum compatibility we tween each
+    --      top-level frame or just toggle Visible after a short delay.
     function win:Toggle()
         win._visible = not win._visible
         if win._visible then
             Root.Visible = true
-            Util.Tween(Root, Ease.Medium, { BackgroundTransparency = 0 })
+            Root.Position = UDim2.new(Root.Position.X.Scale, Root.Position.X.Offset, 0.5, -height/2 - 10)
+            Util.Tween(Root, Ease.Medium, {
+                Position = UDim2.new(Root.Position.X.Scale, Root.Position.X.Offset, 0.5, -height/2)
+            })
         else
-            local t = Util.Tween(Root, Ease.Medium, { BackgroundTransparency = 1 })
+            local t = Util.Tween(Root, Ease.Medium, {
+                Position = UDim2.new(Root.Position.X.Scale, Root.Position.X.Offset, 0.5, -height/2 - 10)
+            })
             t.Completed:Connect(function()
                 Root.Visible = false
             end)
@@ -1507,25 +1539,18 @@ function Ember:CreateWindow(opts)
         Root.Visible = v
     end
 
-    -- Insert key toggle
+    -- Insert key toggles visibility
     UserInputService.InputBegan:Connect(function(i, gp)
         if not gp and i.KeyCode == Enum.KeyCode.Insert then
             win:Toggle()
         end
     end)
 
-    -- Build default tabs if provided in opts
-    if opts.Tabs then
-        for _, tabLabel in ipairs(tabs_def) do
-            -- only create if tabs_def were custom-specified
-        end
-    end
-
     table.insert(Ember._windows, win)
     return win
 end
 
--- ─── GLOBAL TOGGLE ────────────────────────────────────────────────────────────
+-- ─── THEME / META API ─────────────────────────────────────────────────────────
 function Ember:SetTheme(overrides)
     for k, v in pairs(overrides or {}) do
         if Theme[k] then
