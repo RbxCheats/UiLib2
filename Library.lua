@@ -1,11 +1,10 @@
 --[[
-  EMBER UI LIBRARY  v1.0.5
-  Fixes: color picker (UIGradient, no asset IDs), dropdown UIListLayout,
-         notifications (no stripe, outline only), SetTheme live update,
-         drop shadow subtler, section padding balanced, toggle color syncs.
-  v1.0.5: Dropdown border uses accent/surface styling (no ugly grey),
-          Dropdown list uses Modal ZIndex layer so it always appears above buttons,
-          Tab label colors register with theme system for live updates.
+  EMBER UI LIBRARY  v1.0.7
+  Fixed: dropdown fully rewritten — single ScreenGui, Modal TextButton input sink
+         behind the list so clicks never fall through to buttons beneath.
+         Dropdown redesigned: flat pill button, clean popover with smooth open/close.
+  Fixed: color picker closes on tab switch.
+  Fixed: tab label colors update live on SetTheme.
 ]]
 
 local Players          = game:GetService("Players")
@@ -32,9 +31,9 @@ local Theme = {
 	ScrollBar     = Color3.fromHex("3a3d44"),
 	ToggleOff     = Color3.fromHex("3a3d44"),
 	ToggleOn      = Color3.fromHex("f0a64b"),
-	DropdownBg    = Color3.fromHex("22242a"),
-	DropdownItem  = Color3.fromHex("2a2c31"),
-	DropdownHover = Color3.fromHex("34373e"),
+	DropdownBg    = Color3.fromHex("1c1d21"),
+	DropdownItem  = Color3.fromHex("1c1d21"),
+	DropdownHover = Color3.fromHex("2a2c31"),
 	Separator     = Color3.fromHex("35383f"),
 }
 
@@ -51,7 +50,6 @@ local Ease = {
 	Bounce = TweenInfo.new(0.35, Enum.EasingStyle.Back,  Enum.EasingDirection.Out),
 }
 
--- Live theme registry
 local ThemeReg = {}
 for k in pairs(Theme) do ThemeReg[k] = {} end
 
@@ -81,8 +79,7 @@ function Util.HSVtoRGB(h, s, v)
 	if s == 0 then return Color3.new(v,v,v) end
 	local i = math.floor(h*6); local f = h*6-i
 	local p=v*(1-s); local q=v*(1-f*s); local t=v*(1-(1-f)*s)
-	local r,g,b
-	i = i%6
+	local r,g,b; i=i%6
 	if i==0 then r,g,b=v,t,p elseif i==1 then r,g,b=q,v,p
 	elseif i==2 then r,g,b=p,v,t elseif i==3 then r,g,b=p,q,v
 	elseif i==4 then r,g,b=t,p,v elseif i==5 then r,g,b=v,p,q end
@@ -112,7 +109,10 @@ end
 function Util.FromHex(hex)
 	hex=hex:gsub("#","")
 	if #hex~=6 then return Color3.new(1,1,1) end
-	return Color3.fromRGB(tonumber(hex:sub(1,2),16) or 0,tonumber(hex:sub(3,4),16) or 0,tonumber(hex:sub(5,6),16) or 0)
+	return Color3.fromRGB(
+		tonumber(hex:sub(1,2),16) or 0,
+		tonumber(hex:sub(3,4),16) or 0,
+		tonumber(hex:sub(5,6),16) or 0)
 end
 
 function Util.New(class, props)
@@ -121,13 +121,15 @@ function Util.New(class, props)
 	if props and props.Parent then i.Parent=props.Parent end
 	return i
 end
-function Util.Corner(r, p) local c=Instance.new("UICorner"); c.CornerRadius=UDim.new(0,r or 6); if p then c.Parent=p end; return c end
+function Util.Corner(r,p) local c=Instance.new("UICorner"); c.CornerRadius=UDim.new(0,r or 6); if p then c.Parent=p end; return c end
 function Util.Pad(t,r,b,l,p) local x=Instance.new("UIPadding"); x.PaddingTop=UDim.new(0,t or 0); x.PaddingRight=UDim.new(0,r or 0); x.PaddingBottom=UDim.new(0,b or 0); x.PaddingLeft=UDim.new(0,l or 0); if p then x.Parent=p end; return x end
 function Util.Stroke(color,thickness,transparency,p) local s=Instance.new("UIStroke"); s.Color=color or Theme.Border; s.Thickness=thickness or 1; s.Transparency=transparency or 0; if p then s.Parent=p end; return s end
 function Util.List(gap,dir,halign,p)
 	local l=Instance.new("UIListLayout")
-	l.Padding=UDim.new(0,gap or 0); l.FillDirection=dir or Enum.FillDirection.Vertical
-	l.HorizontalAlignment=halign or Enum.HorizontalAlignment.Left; l.SortOrder=Enum.SortOrder.LayoutOrder
+	l.Padding=UDim.new(0,gap or 0)
+	l.FillDirection=dir or Enum.FillDirection.Vertical
+	l.HorizontalAlignment=halign or Enum.HorizontalAlignment.Left
+	l.SortOrder=Enum.SortOrder.LayoutOrder
 	if p then l.Parent=p end; return l
 end
 function Util.Drag(handle, target)
@@ -141,7 +143,6 @@ function Util.Drag(handle, target)
 	end)
 end
 
--- Build a UIGradient rainbow hue bar (vertical, client-side, no asset needed)
 function Util.MakeHueGradient(parent)
 	local stops={}
 	for i=0,6 do
@@ -151,16 +152,134 @@ function Util.MakeHueGradient(parent)
 	local g=Instance.new("UIGradient"); g.Rotation=90; g.Color=ColorSequence.new(stops); g.Parent=parent; return g
 end
 
-local Ember={}; Ember.__index=Ember; Ember._version="1.0.6"; Ember._windows={}
+local Ember={}; Ember.__index=Ember; Ember._version="1.0.7"; Ember._windows={}
 
-pcall(function() if CoreGui:FindFirstChild("EmberUI") then CoreGui.EmberUI:Destroy() end end)
+pcall(function()
+	if CoreGui:FindFirstChild("EmberUI") then CoreGui.EmberUI:Destroy() end
+	if CoreGui:FindFirstChild("EmberDropdowns") then CoreGui.EmberDropdowns:Destroy() end
+end)
 
-local ScreenGui=Util.New("ScreenGui",{Name="EmberUI",ResetOnSpawn=false,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,IgnoreGuiInset=true,DisplayOrder=999,Parent=CoreGui})
+-- Single ScreenGui for everything. Dropdown overlay lives in here at high ZIndex.
+-- We do NOT use a second ScreenGui — that causes input to fire on both layers.
+local ScreenGui=Util.New("ScreenGui",{
+	Name="EmberUI", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+	IgnoreGuiInset=true, DisplayOrder=999, Parent=CoreGui
+})
 
--- Dropdown overlay: separate ScreenGui at higher DisplayOrder so lists always render
--- above the window. Unlike a transparent Frame, a ScreenGui doesn't swallow clicks
--- on empty space — input falls through to lower layers naturally.
-local DropGui=Util.New("ScreenGui",{Name="EmberDropdowns",ResetOnSpawn=false,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,IgnoreGuiInset=true,DisplayOrder=1000,Parent=CoreGui})
+-- ─── DROPDOWN OVERLAY ─────────────────────────────────────────────────────────
+-- Lives at the top of the ZIndex stack inside the single ScreenGui.
+-- Structure: Sink (full-screen Modal TextButton, blocks all underlying input)
+--             └── Popover (the visible list, child of Sink so it's above it)
+-- Using Modal=true on the Sink means Roblox routes ALL mouse clicks to it first,
+-- so nothing beneath (buttons, sliders, etc.) can ever receive the click.
+local DropSink = Util.New("TextButton", {
+	Name="DropSink", Size=UDim2.new(1,0,1,0),
+	BackgroundTransparency=1, Text="", AutoButtonColor=false,
+	ZIndex=200, Visible=false, Modal=true, Parent=ScreenGui
+})
+-- The popover is a child of DropSink so it renders on top of the sink
+local DropPopover = Util.New("Frame", {
+	Name="DropPopover", Size=UDim2.new(0,200,0,120),
+	BackgroundColor3=Theme.DropdownBg, BorderSizePixel=0,
+	ZIndex=201, ClipsDescendants=true, Parent=DropSink
+})
+Util.Corner(8, DropPopover)
+Util.Stroke(Theme.Border, 1, 0.15, DropPopover)
+
+local DropScroll = Util.New("ScrollingFrame", {
+	Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+	BorderSizePixel=0, ScrollBarThickness=3,
+	ScrollBarImageColor3=Theme.ScrollBar,
+	CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y,
+	ZIndex=202, Parent=DropPopover
+})
+local DropList = Util.List(0, Enum.FillDirection.Vertical, Enum.HorizontalAlignment.Left, DropScroll)
+DropList.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- State for the one dropdown that is currently open
+local _openClose = nil  -- function to close the currently open dropdown
+
+local function openDropdown(btnFrame, items, selectedText, onSelect, onClose)
+	-- Close any previously open dropdown first
+	if _openClose then _openClose() end
+
+	-- Clear old items from shared popover
+	for _, child in ipairs(DropScroll:GetChildren()) do
+		if not child:IsA("UIListLayout") then child:Destroy() end
+	end
+
+	local ITEM_H = 34
+	local visRows = math.min(#items, 6)
+
+	-- Position the popover flush below the button
+	local ap = btnFrame.AbsolutePosition
+	local as = btnFrame.AbsoluteSize
+	local listH = visRows * ITEM_H
+	DropPopover.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
+	DropPopover.Size = UDim2.new(0, as.X, 0, listH)
+	DropScroll.CanvasSize = UDim2.new(0, 0, 0, #items * ITEM_H)
+	DropScroll.ScrollBarThickness = #items > 6 and 3 or 0
+
+	-- Build items
+	for idx, itemText in ipairs(items) do
+		local isSel = (itemText == selectedText)
+		local row = Util.New("Frame", {
+			Size=UDim2.new(1,0,0,ITEM_H), BackgroundColor3=isSel and Theme.DropdownHover or Theme.DropdownItem,
+			BorderSizePixel=0, LayoutOrder=idx, ZIndex=203, Parent=DropScroll
+		})
+		-- Accent left bar for selected item
+		if isSel then
+			local bar = Util.New("Frame", {Size=UDim2.new(0,3,1,0), BackgroundColor3=Theme.Accent, BorderSizePixel=0, ZIndex=204, Parent=row})
+			Util.Corner(2, bar)
+		end
+		local lbl = Util.New("TextLabel", {
+			Size=UDim2.new(1,-isSel and 20 or 14,1,0),
+			Position=UDim2.new(0, isSel and 14 or 10, 0,0),
+			BackgroundTransparency=1, Text=itemText,
+			TextColor3=isSel and Theme.Accent or Theme.TextPrimary,
+			Font=isSel and Font.SemiBold or Font.Regular,
+			TextSize=13, TextXAlignment=Enum.TextXAlignment.Left,
+			ZIndex=204, Parent=row
+		})
+		-- Hairline separator (not on last item)
+		if idx < #items then
+			Util.New("Frame",{
+				Size=UDim2.new(1,-16,0,1), Position=UDim2.new(0,8,1,-1),
+				BackgroundColor3=Theme.Separator, BorderSizePixel=0, ZIndex=204, Parent=row
+			})
+		end
+		-- Hit button over the row — captures click within the sink context
+		local hit = Util.New("TextButton", {
+			Size=UDim2.new(1,0,1,0), BackgroundTransparency=1, Text="",
+			AutoButtonColor=false, ZIndex=205, Parent=row
+		})
+		hit.MouseEnter:Connect(function()
+			if not isSel then row.BackgroundColor3=Theme.DropdownHover end
+		end)
+		hit.MouseLeave:Connect(function()
+			if not isSel then row.BackgroundColor3=Theme.DropdownItem end
+		end)
+		hit.MouseButton1Click:Connect(function()
+			onSelect(itemText)
+			if _openClose then _openClose() end
+		end)
+	end
+
+	DropSink.Visible = true
+
+	local function close()
+		if _openClose ~= close then return end
+		_openClose = nil
+		DropSink.Visible = false
+		onClose()
+	end
+	_openClose = close
+
+	-- Clicking the sink background (outside the popover) closes the dropdown
+	DropSink.MouseButton1Click:Connect(function()
+		if _openClose == close then close() end
+	end)
+end
 
 -- ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 local NotifHolder=Util.New("Frame",{Name="Notifications",Size=UDim2.new(0,300,1,0),Position=UDim2.new(1,-316,0,0),BackgroundTransparency=1,Parent=ScreenGui})
@@ -174,14 +293,10 @@ function Ember:Notify(opts)
 	local duration=opts.Duration or 4; local ntype=opts.Type or "info"
 	local accent=Theme.Accent
 	if ntype=="success" then accent=Theme.Success elseif ntype=="error" then accent=Theme.Danger end
-
 	local card=Util.New("Frame",{Name="Notif",Size=UDim2.new(1,0,0,66),Position=UDim2.new(1,20,0,0),BackgroundColor3=Theme.Surface,Parent=NotifHolder})
-	Util.Corner(8,card)
-	Util.Stroke(accent,1.5,0,card)
-
+	Util.Corner(8,card); Util.Stroke(accent,1.5,0,card)
 	Util.New("TextLabel",{Size=UDim2.new(1,-24,0,20),Position=UDim2.new(0,12,0,10),BackgroundTransparency=1,Text=title,TextColor3=Theme.TextPrimary,Font=Font.Bold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Center,Parent=card})
 	Util.New("TextLabel",{Size=UDim2.new(1,-24,0,28),Position=UDim2.new(0,12,0,33),BackgroundTransparency=1,Text=message,TextColor3=Theme.TextSecondary,Font=Font.Regular,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top,TextWrapped=true,Parent=card})
-
 	Util.Tween(card,Ease.Bounce,{Position=UDim2.new(0,0,0,0)})
 	task.spawn(function()
 		task.wait(duration)
@@ -208,30 +323,24 @@ function Ember:CreateWindow(opts)
 	Util.New("ImageLabel",{Name="Shadow",Size=UDim2.new(1,30,1,30),Position=UDim2.new(0,-15,0,-15),BackgroundTransparency=1,Image="rbxassetid://6014261993",ImageColor3=Color3.new(0,0,0),ImageTransparency=0.78,ScaleType=Enum.ScaleType.Slice,SliceCenter=Rect.new(49,49,450,450),ZIndex=-1,Parent=Root})
 	win._root=Root
 
-	-- Title bar
 	local TitleBar=Util.New("Frame",{Name="TitleBar",Size=UDim2.new(1,0,0,52),BackgroundColor3=Theme.Surface,BorderSizePixel=0,ZIndex=2,Parent=Root})
 	Util.Corner(10,TitleBar)
 	Util.New("Frame",{Size=UDim2.new(1,0,0.5,0),Position=UDim2.new(0,0,0.5,0),BackgroundColor3=Theme.Surface,BorderSizePixel=0,ZIndex=1,Parent=TitleBar})
-
 	local Dot=Util.New("Frame",{Size=UDim2.new(0,8,0,8),Position=UDim2.new(0,18,0.5,-4),BackgroundColor3=Theme.Accent,BorderSizePixel=0,ZIndex=3,Parent=TitleBar})
 	Util.Corner(4,Dot); reg("Accent",Dot,"BackgroundColor3")
-
 	local TitleLbl=Util.New("TextLabel",{Size=UDim2.new(0,200,1,0),Position=UDim2.new(0,34,0,0),BackgroundTransparency=1,Text=title,TextColor3=Theme.TextPrimary,Font=Font.Bold,TextSize=15,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=3,Parent=TitleBar})
 	if sub~="" then
 		local SubLbl=Util.New("TextLabel",{Size=UDim2.new(0,200,1,0),Position=UDim2.new(0,150,0,0),BackgroundTransparency=1,Text=sub,TextColor3=Theme.TextSecondary,Font=Font.Regular,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=3,Parent=TitleBar})
 		TitleLbl:GetPropertyChangedSignal("TextBounds"):Connect(function() SubLbl.Position=UDim2.new(0,34+TitleLbl.TextBounds.X+8,0,0) end)
 	end
-
 	local KeyHint=Util.New("TextLabel",{Size=UDim2.new(0,60,0,20),Position=UDim2.new(1,-72,0.5,-10),BackgroundColor3=Theme.SurfaceActive,Text="INSERT",TextColor3=Theme.TextDisabled,Font=Font.Mono,TextSize=10,ZIndex=3,Parent=TitleBar})
 	Util.Corner(4,KeyHint); Util.Stroke(Theme.Border,1,0.5,KeyHint)
 
-	-- Tab bar
 	local TabBar=Util.New("Frame",{Size=UDim2.new(1,0,0,40),Position=UDim2.new(0,0,0,52),BackgroundColor3=Theme.Background,BorderSizePixel=0,ZIndex=2,Parent=Root})
 	local TabScroll=Util.New("ScrollingFrame",{Size=UDim2.new(1,-20,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,ScrollBarThickness=0,ScrollingDirection=Enum.ScrollingDirection.X,CanvasSize=UDim2.new(0,0,1,0),AutomaticCanvasSize=Enum.AutomaticSize.X,Parent=TabBar})
 	local TabList=Util.List(4,Enum.FillDirection.Horizontal,Enum.HorizontalAlignment.Left,TabScroll)
 	TabList.VerticalAlignment=Enum.VerticalAlignment.Center
 	Util.New("Frame",{Size=UDim2.new(1,0,0,1),Position=UDim2.new(0,0,1,-1),BackgroundColor3=Theme.Separator,BorderSizePixel=0,Parent=TabBar})
-	win._tabScroll=TabScroll
 
 	local ContentArea=Util.New("Frame",{Size=UDim2.new(1,-16,1,-(52+40+8+8)),Position=UDim2.new(0,8,0,52+40+8),BackgroundTransparency=1,ClipsDescendants=true,Parent=Root})
 	win._contentArea=ContentArea
@@ -242,7 +351,6 @@ function Ember:CreateWindow(opts)
 			t._scroll.Visible=false
 			Util.Tween(t._lbl,Ease.Fast,{TextColor3=Theme.TextSecondary})
 			Util.Tween(t._ind,Ease.Fast,{BackgroundTransparency=1})
-			-- Close any open color pickers on the tab we are leaving
 			if t._closePickers then t._closePickers() end
 		end
 		tab._scroll.Visible=true
@@ -256,7 +364,6 @@ function Ember:CreateWindow(opts)
 
 	function win:CreateTab(label)
 		local tab={_label=label,_sections={},_colIdx=0}
-		-- Registry of close functions for color pickers on this tab
 		local _pickerClosers={}
 		tab._closePickers=function() for _,fn in ipairs(_pickerClosers) do fn() end end
 
@@ -267,18 +374,11 @@ function Ember:CreateWindow(opts)
 		Util.Corner(2,ind); reg("Accent",ind,"BackgroundColor3")
 		tab._btn=btn; tab._lbl=lbl; tab._ind=ind
 
-		-- FIX: Register tab label TextColor3 with theme so inactive tabs update live.
-		-- We store whether this tab is active so we can apply the right colour on change.
 		regFn("Accent",function(newAccent)
-			if self._activeTab==tab then
-				lbl.TextColor3=newAccent
-			end
-			-- Inactive tabs keep TextSecondary; nothing needed for them.
+			if self._activeTab==tab then lbl.TextColor3=newAccent end
 		end)
 		regFn("TextSecondary",function(newColor)
-			if self._activeTab~=tab then
-				lbl.TextColor3=newColor
-			end
+			if self._activeTab~=tab then lbl.TextColor3=newColor end
 		end)
 
 		btn.MouseEnter:Connect(function() if self._activeTab~=tab then Util.Tween(lbl,Ease.Fast,{TextColor3=Theme.TextPrimary}) end end)
@@ -311,7 +411,6 @@ function Ember:CreateWindow(opts)
 			local Hdr=Util.New("Frame",{Size=UDim2.new(1,0,0,26),BackgroundTransparency=1,LayoutOrder=0,Parent=Inner})
 			local HdrLbl=Util.New("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text=title:upper(),TextColor3=Theme.Accent,Font=Font.Bold,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,Parent=Hdr})
 			reg("Accent",HdrLbl,"TextColor3")
-
 			Util.New("Frame",{Size=UDim2.new(1,0,0,1),BackgroundColor3=Theme.Separator,BorderSizePixel=0,LayoutOrder=1,Parent=Inner})
 
 			local Elems=Util.New("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,LayoutOrder=2,Parent=Inner})
@@ -323,7 +422,7 @@ function Ember:CreateWindow(opts)
 				return Util.New("Frame",{Size=UDim2.new(1,0,0,h),BackgroundTransparency=1,LayoutOrder=sec._order,Parent=Elems})
 			end
 
-			-- AddToggle
+			-- ── AddToggle ──────────────────────────────────────────────────────
 			function sec:AddToggle(opts)
 				opts=opts or {}
 				local lbl=opts.Label or "Toggle"; local default=opts.Default~=nil and opts.Default or false
@@ -346,7 +445,7 @@ function Ember:CreateWindow(opts)
 				local ctrl={}; function ctrl:Set(v) set(v,false) end; function ctrl:Get() return state end; return ctrl
 			end
 
-			-- AddSlider
+			-- ── AddSlider ──────────────────────────────────────────────────────
 			function sec:AddSlider(opts)
 				opts=opts or {}
 				local lbl=opts.Label or "Slider"; local min=opts.Min or 0; local max=opts.Max or 100
@@ -383,101 +482,106 @@ function Ember:CreateWindow(opts)
 				function ctrl:Get() return value end; return ctrl
 			end
 
-			-- AddDropdown
+			-- ── AddDropdown (fully rewritten) ──────────────────────────────────
+			-- Design: flat pill button with chevron. Clicking opens the shared
+			-- popover via openDropdown(). The sink's Modal=true property means
+			-- Roblox treats it as the exclusive input target — no click bleeds
+			-- through to buttons underneath regardless of ZIndex.
 			function sec:AddDropdown(opts)
 				opts=opts or {}
-				local lbl=opts.Label or "Dropdown"; local items=opts.Items or {"none"}
-				local default=opts.Default or items[1] or "none"; local callback=opts.Callback or function() end
-				local selected=default
-				local r=row(60)
-				Util.New("TextLabel",{Size=UDim2.new(1,0,0,20),BackgroundTransparency=1,Text=lbl,TextColor3=Theme.TextPrimary,Font=Font.Regular,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left,Parent=r})
+				local lbl    = opts.Label    or "Dropdown"
+				local items  = opts.Items    or {"none"}
+				local default= opts.Default  or items[1] or "none"
+				local callback=opts.Callback or function() end
+				local selected = default
 
-				-- FIX: Dropdown button border uses Surface border style, not the raw Border grey.
-				-- We use a subtle stroke that matches the button background edge.
-				local Btn=Util.New("TextButton",{Size=UDim2.new(1,0,0,30),Position=UDim2.new(0,0,0,24),BackgroundColor3=Theme.DropdownBg,Text="",AutoButtonColor=false,Parent=r})
-				Util.Corner(6,Btn)
-				Util.Stroke(Theme.Border,1,0.3,Btn)
-
-				local BtnLbl=Util.New("TextLabel",{Size=UDim2.new(1,-34,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text=selected,TextColor3=Theme.TextPrimary,Font=Font.Regular,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,Parent=Btn})
-				local Arrow=Util.New("ImageLabel",{Size=UDim2.new(0,10,0,10),Position=UDim2.new(1,-20,0.5,-5),BackgroundTransparency=1,Image="rbxassetid://6034818372",ImageColor3=Theme.TextSecondary,Rotation=90,Parent=Btn})
-
-				local function setBtnOpen(isOpen)
-					-- Arrow rotation handled by callers; placeholder kept for call-site compat
-					_ = isOpen
-				end
-
-				local ITEM_H=30; local visRows=math.min(#items,5); local listH=visRows*ITEM_H
-
-				-- Parent to DropGui (DisplayOrder=1000) so it always renders above the window.
-				-- A ScreenGui doesn't swallow clicks on empty space unlike a transparent Frame.
-				local List=Util.New("ScrollingFrame",{
-					Size=UDim2.new(0,100,0,listH),
-					BackgroundColor3=Theme.DropdownBg,
-					BorderSizePixel=0,
-					Visible=false,
-					ZIndex=1,
-					ClipsDescendants=true,
-					ScrollBarThickness=#items>5 and 3 or 0,
-					ScrollBarImageColor3=Theme.ScrollBar,
-					CanvasSize=UDim2.new(0,0,0,#items*ITEM_H),
-					Parent=DropGui
+				-- Label row
+				local r = row(58)
+				Util.New("TextLabel",{
+					Size=UDim2.new(1,0,0,18), BackgroundTransparency=1,
+					Text=lbl, TextColor3=Theme.TextSecondary,
+					Font=Font.Regular, TextSize=12,
+					TextXAlignment=Enum.TextXAlignment.Left, Parent=r
 				})
-				Util.Corner(6,List)
-				-- Subtle neutral border — no accent colour, matches the closed button style
-				Util.Stroke(Theme.Border,1,0.2,List)
-				local IL=Util.List(0,Enum.FillDirection.Vertical,Enum.HorizontalAlignment.Left,List)
-				IL.SortOrder=Enum.SortOrder.LayoutOrder
 
-				local open=false; local itemBtns={}
-				local function closeList()
-					open=false; List.Visible=false
-					Util.Tween(Arrow,Ease.Fast,{Rotation=90})
-					setBtnOpen(false)
+				-- The pill button
+				local Pill = Util.New("TextButton",{
+					Size=UDim2.new(1,0,0,32), Position=UDim2.new(0,0,0,20),
+					BackgroundColor3=Theme.SurfaceActive,
+					Text="", AutoButtonColor=false, Parent=r
+				})
+				Util.Corner(6, Pill)
+				Util.Stroke(Theme.Border, 1, 0, Pill)
+
+				local PillLbl = Util.New("TextLabel",{
+					Size=UDim2.new(1,-32,1,0), Position=UDim2.new(0,12,0,0),
+					BackgroundTransparency=1, Text=selected,
+					TextColor3=Theme.TextPrimary,
+					Font=Font.SemiBold, TextSize=13,
+					TextXAlignment=Enum.TextXAlignment.Left, Parent=Pill
+				})
+
+				-- Chevron (two lines forming a V)
+				local ChevFrame = Util.New("Frame",{
+					Size=UDim2.new(0,16,0,16), Position=UDim2.new(1,-24,0.5,-8),
+					BackgroundTransparency=1, Parent=Pill
+				})
+				-- Draw chevron with two thin frames rotated
+				local function mkChevLine(rot)
+					local f=Util.New("Frame",{Size=UDim2.new(0,9,0,2),AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,0),BackgroundColor3=Theme.TextSecondary,BorderSizePixel=0,Rotation=rot,Parent=ChevFrame})
+					Util.Corner(1,f); return f
+				end
+				local ChevL=mkChevLine(45); local ChevR=mkChevLine(-45)
+				-- offset them apart to form a V
+				ChevL.Position=UDim2.new(0.5,-3,0.5,0)
+				ChevR.Position=UDim2.new(0.5,3,0.5,0)
+
+				local isOpen = false
+
+				local function setOpenVisual(open)
+					isOpen = open
+					local rot = open and -1 or 1
+					Util.Tween(ChevL, Ease.Fast, {Rotation=open and -45 or 45})
+					Util.Tween(ChevR, Ease.Fast, {Rotation=open and 45 or -45})
+					Util.Tween(Pill, Ease.Fast, {BackgroundColor3=open and Theme.SurfaceHover or Theme.SurfaceActive})
 				end
 
-				for idx,itemText in ipairs(items) do
-					local isSel=(itemText==selected)
-					local ItemBtn=Util.New("TextButton",{Size=UDim2.new(1,0,0,ITEM_H),BackgroundColor3=isSel and Theme.SurfaceHover or Theme.DropdownItem,Text="",AutoButtonColor=false,LayoutOrder=idx,ZIndex=2,Parent=List})
-					local ItemLbl=Util.New("TextLabel",{Size=UDim2.new(1,-10,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text=itemText,TextColor3=isSel and Theme.Accent or Theme.TextPrimary,Font=isSel and Font.SemiBold or Font.Regular,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=3,Parent=ItemBtn})
-					if idx<#items then Util.New("Frame",{Size=UDim2.new(1,-20,0,1),Position=UDim2.new(0,10,1,-1),BackgroundColor3=Theme.Separator,BorderSizePixel=0,ZIndex=4,Parent=ItemBtn}) end
-					ItemBtn.MouseEnter:Connect(function() if itemText~=selected then ItemBtn.BackgroundColor3=Theme.DropdownHover end end)
-					ItemBtn.MouseLeave:Connect(function() ItemBtn.BackgroundColor3=(itemText==selected) and Theme.SurfaceHover or Theme.DropdownItem end)
-					ItemBtn.MouseButton1Up:Connect(function()
-						for _,ib in ipairs(itemBtns) do ib.btn.BackgroundColor3=Theme.DropdownItem; ib.lbl.TextColor3=Theme.TextPrimary; ib.lbl.Font=Font.Regular end
-						ItemBtn.BackgroundColor3=Theme.SurfaceHover; ItemLbl.TextColor3=Theme.Accent; ItemLbl.Font=Font.SemiBold
-						selected=itemText; BtnLbl.Text=itemText; closeList(); callback(selected)
-					end)
-					table.insert(itemBtns,{btn=ItemBtn,lbl=ItemLbl,text=itemText})
+				local function onClose()
+					setOpenVisual(false)
 				end
 
-				-- Keep ListStroke accent colour in sync with theme changes
-				regFn("Accent",function(newAccent) ListStroke.Color=newAccent end)
+				local function onSelect(itemText)
+					selected = itemText
+					PillLbl.Text = itemText
+					callback(selected)
+				end
 
-				Btn.MouseButton1Click:Connect(function()
-					open=not open
-					if open then
-						local ap=Btn.AbsolutePosition; local as=Btn.AbsoluteSize
-						List.Position=UDim2.new(0,ap.X,0,ap.Y+as.Y+4); List.Size=UDim2.new(0,as.X,0,listH)
-						List.Visible=true; Util.Tween(Arrow,Ease.Fast,{Rotation=270})
-						setBtnOpen(true)
-					else closeList() end
-				end)
-				UserInputService.InputBegan:Connect(function(i)
-					if open and i.UserInputType==Enum.UserInputType.MouseButton1 then
-						local mp=UserInputService:GetMouseLocation()
-						local lp=List.AbsolutePosition; local ls=List.AbsoluteSize
-						local bp=Btn.AbsolutePosition; local bs=Btn.AbsoluteSize
-						local inList=mp.X>=lp.X and mp.X<=lp.X+ls.X and mp.Y>=lp.Y and mp.Y<=lp.Y+ls.Y
-						local inBtn=mp.X>=bp.X and mp.X<=bp.X+bs.X and mp.Y>=bp.Y and mp.Y<=bp.Y+bs.Y
-						if not inList and not inBtn then closeList() end
+				Pill.MouseButton1Click:Connect(function()
+					if isOpen then
+						-- Clicking again while open: close via sink click handler
+						if _openClose then _openClose() end
+					else
+						setOpenVisual(true)
+						openDropdown(Pill, items, selected, onSelect, onClose)
 					end
 				end)
+
+				Pill.MouseEnter:Connect(function()
+					if not isOpen then Util.Tween(Pill,Ease.Fast,{BackgroundColor3=Theme.SurfaceHover}) end
+				end)
+				Pill.MouseLeave:Connect(function()
+					if not isOpen then Util.Tween(Pill,Ease.Fast,{BackgroundColor3=Theme.SurfaceActive}) end
+				end)
+
 				local ctrl={}
-				function ctrl:Set(v) selected=v; BtnLbl.Text=v; for _,ib in ipairs(itemBtns) do local s=(ib.text==v); ib.btn.BackgroundColor3=s and Theme.SurfaceHover or Theme.DropdownItem; ib.lbl.TextColor3=s and Theme.Accent or Theme.TextPrimary; ib.lbl.Font=s and Font.SemiBold or Font.Regular end end
-				function ctrl:Get() return selected end; return ctrl
+				function ctrl:Set(v)
+					selected=v; PillLbl.Text=v
+				end
+				function ctrl:Get() return selected end
+				return ctrl
 			end
 
-			-- AddButton
+			-- ── AddButton ──────────────────────────────────────────────────────
 			function sec:AddButton(opts)
 				opts=opts or {}
 				local lbl=opts.Label or "Button"; local sublbl=opts.SubLabel or nil
@@ -497,13 +601,13 @@ function Ember:CreateWindow(opts)
 				Btn.MouseButton1Up:Connect(function() Util.Tween(Btn,Ease.Fast,{BackgroundColor3=hoverBg}); callback() end)
 			end
 
-			-- AddLabel
+			-- ── AddLabel ───────────────────────────────────────────────────────
 			function sec:AddLabel(opts)
 				opts=opts or {}; local r=row(30)
 				Util.New("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text=opts.Text or "",TextColor3=opts.Color or Theme.TextSecondary,Font=Font.Regular,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Center,TextWrapped=true,Parent=r})
 			end
 
-			-- AddColorPicker
+			-- ── AddColorPicker ─────────────────────────────────────────────────
 			function sec:AddColorPicker(opts)
 				opts=opts or {}
 				local lbl=opts.Label or "Color"; local default=opts.Default or Color3.fromRGB(240,166,75)
@@ -522,34 +626,27 @@ function Ember:CreateWindow(opts)
 
 				local SQ=Util.New("Frame",{Size=UDim2.new(1,-(8+18+8+80),1,0),BackgroundColor3=Color3.fromHSV(H,1,1),BorderSizePixel=0,ClipsDescendants=false,Parent=Panel})
 				Util.Corner(4,SQ)
-
 				local SatF=Util.New("Frame",{Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=2,ClipsDescendants=false,Parent=SQ})
 				Util.Corner(4,SatF)
 				local SatG=Instance.new("UIGradient"); SatG.Rotation=0
 				SatG.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.new(1,1,1)),ColorSequenceKeypoint.new(1,Color3.fromHSV(H,1,1))})
 				SatG.Transparency=NumberSequence.new(0); SatG.Parent=SatF
-
 				local ValF=Util.New("Frame",{Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.new(0,0,0),BorderSizePixel=0,ZIndex=3,ClipsDescendants=false,Parent=SQ})
 				Util.Corner(4,ValF)
 				local ValG=Instance.new("UIGradient"); ValG.Rotation=90
 				ValG.Color=ColorSequence.new(Color3.new(0,0,0))
 				ValG.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(1,0)}); ValG.Parent=ValF
-
 				local SVCur=Util.New("Frame",{Size=UDim2.new(0,12,0,12),AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(S,0,1-V,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=10,Parent=SQ})
 				Util.Corner(6,SVCur); Util.Stroke(Color3.new(0,0,0),1.5,0.15,SVCur)
-
 				local HueBar=Util.New("Frame",{Size=UDim2.new(0,18,1,0),Position=UDim2.new(1,-(8+80+8+18),0,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ClipsDescendants=false,Parent=Panel})
 				Util.Corner(4,HueBar); Util.MakeHueGradient(HueBar)
-
 				local HueLine=Util.New("Frame",{Size=UDim2.new(1,6,0,3),AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,H,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=5,Parent=HueBar})
 				Util.Corner(1,HueLine); Util.Stroke(Color3.new(0,0,0),1,0.2,HueLine)
-
 				local RP=Util.New("Frame",{Size=UDim2.new(0,80,1,0),Position=UDim2.new(1,-80,0,0),BackgroundTransparency=1,Parent=Panel})
 				local CPrev=Util.New("Frame",{Size=UDim2.new(1,0,0,50),BackgroundColor3=curColor,Parent=RP}); Util.Corner(5,CPrev)
 				Util.New("TextLabel",{Size=UDim2.new(1,0,0,12),Position=UDim2.new(0,0,0,54),BackgroundTransparency=1,Text="HEX",TextColor3=Theme.TextDisabled,Font=Font.Bold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left,Parent=RP})
 				local HexBox=Util.New("TextBox",{Size=UDim2.new(1,0,0,24),Position=UDim2.new(0,0,0,66),BackgroundColor3=Theme.DropdownBg,Text="#"..Util.ToHex(curColor),TextColor3=Theme.TextPrimary,Font=Font.Mono,TextSize=10,ClearTextOnFocus=false,Parent=RP})
 				Util.Corner(4,HexBox); Util.Pad(0,4,0,4,HexBox)
-
 				local function mkRGB(ch,yoff,init)
 					local f=Util.New("Frame",{Size=UDim2.new(1,0,0,16),Position=UDim2.new(0,0,0,yoff),BackgroundColor3=Theme.DropdownBg,Parent=RP}); Util.Corner(3,f)
 					Util.New("TextLabel",{Size=UDim2.new(0,14,1,0),BackgroundTransparency=1,Text=ch,TextColor3=Theme.TextDisabled,Font=Font.Bold,TextSize=9,Parent=f})
@@ -558,7 +655,6 @@ function Ember:CreateWindow(opts)
 				local RLbl=mkRGB("R",96,math.floor(curColor.R*255))
 				local GLbl=mkRGB("G",115,math.floor(curColor.G*255))
 				local BLbl=mkRGB("B",134,math.floor(curColor.B*255))
-
 				local function apply()
 					curColor=Util.HSVtoRGB(H,S,V)
 					local hCol=Color3.fromHSV(H,1,1)
@@ -569,26 +665,18 @@ function Ember:CreateWindow(opts)
 					RLbl.Text=tostring(math.floor(curColor.R*255)); GLbl.Text=tostring(math.floor(curColor.G*255)); BLbl.Text=tostring(math.floor(curColor.B*255))
 					callback(curColor)
 				end
-
 				local svDrag=false
 				SQ.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then svDrag=true; local a=SQ.AbsolutePosition;local s2=SQ.AbsoluteSize; S=Util.Clamp((i.Position.X-a.X)/s2.X,0,1); V=1-Util.Clamp((i.Position.Y-a.Y)/s2.Y,0,1); SVCur.Position=UDim2.new(S,0,1-V,0); apply() end end)
 				SQ.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then svDrag=false end end)
 				UserInputService.InputChanged:Connect(function(i) if svDrag and i.UserInputType==Enum.UserInputType.MouseMovement then local a=SQ.AbsolutePosition;local s2=SQ.AbsoluteSize; S=Util.Clamp((i.Position.X-a.X)/s2.X,0,1); V=1-Util.Clamp((i.Position.Y-a.Y)/s2.Y,0,1); SVCur.Position=UDim2.new(S,0,1-V,0); apply() end end)
-
 				local hDrag=false
 				HueBar.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then hDrag=true; local a=HueBar.AbsolutePosition;local s2=HueBar.AbsoluteSize; H=Util.Clamp((i.Position.Y-a.Y)/s2.Y,0,1); HueLine.Position=UDim2.new(0.5,0,H,0); apply() end end)
 				HueBar.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then hDrag=false end end)
 				UserInputService.InputChanged:Connect(function(i) if hDrag and i.UserInputType==Enum.UserInputType.MouseMovement then local a=HueBar.AbsolutePosition;local s2=HueBar.AbsoluteSize; H=Util.Clamp((i.Position.Y-a.Y)/s2.Y,0,1); HueLine.Position=UDim2.new(0.5,0,H,0); apply() end end)
-
 				HexBox.FocusLost:Connect(function() local hex=HexBox.Text:gsub("#",""); if #hex==6 then local c=Util.FromHex(hex); H,S,V=Util.RGBtoHSV(c); SVCur.Position=UDim2.new(S,0,1-V,0); HueLine.Position=UDim2.new(0.5,0,H,0); apply() end end)
-
 				local pickerOpen=false
 				local function closePicker()
-					if pickerOpen then
-						pickerOpen=false
-						PanelRow.Visible=false
-						PanelRow.Size=UDim2.new(1,0,0,0)
-					end
+					if pickerOpen then pickerOpen=false; PanelRow.Visible=false; PanelRow.Size=UDim2.new(1,0,0,0) end
 				end
 				table.insert(_pickerClosers,closePicker)
 				Swatch.MouseButton1Click:Connect(function()
@@ -596,13 +684,12 @@ function Ember:CreateWindow(opts)
 					PanelRow.Visible=pickerOpen
 					PanelRow.Size=UDim2.new(1,0,0,pickerOpen and 210 or 0)
 				end)
-
 				local ctrl={}
 				function ctrl:Set(c) curColor=c; H,S,V=Util.RGBtoHSV(c); SVCur.Position=UDim2.new(S,0,1-V,0); HueLine.Position=UDim2.new(0.5,0,H,0); apply() end
 				function ctrl:Get() return curColor end; return ctrl
 			end
 
-			-- AddSeparator
+			-- ── AddSeparator ───────────────────────────────────────────────────
 			function sec:AddSeparator()
 				sec._order=sec._order+1
 				Util.New("Frame",{Size=UDim2.new(1,0,0,1),BackgroundColor3=Theme.Separator,BorderSizePixel=0,LayoutOrder=sec._order,Parent=Elems})
