@@ -151,15 +151,16 @@ function Util.MakeHueGradient(parent)
 	local g=Instance.new("UIGradient"); g.Rotation=90; g.Color=ColorSequence.new(stops); g.Parent=parent; return g
 end
 
-local Ember={}; Ember.__index=Ember; Ember._version="1.0.5"; Ember._windows={}
+local Ember={}; Ember.__index=Ember; Ember._version="1.0.6"; Ember._windows={}
 
 pcall(function() if CoreGui:FindFirstChild("EmberUI") then CoreGui.EmberUI:Destroy() end end)
 
 local ScreenGui=Util.New("ScreenGui",{Name="EmberUI",ResetOnSpawn=false,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,IgnoreGuiInset=true,DisplayOrder=999,Parent=CoreGui})
 
--- FIX: A dedicated top-level modal layer parented to ScreenGui.
--- Dropdowns are reparented here when open so they always sit above everything.
-local ModalLayer=Util.New("Frame",{Name="ModalLayer",Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,ZIndex=500,Parent=ScreenGui})
+-- Dropdown overlay: separate ScreenGui at higher DisplayOrder so lists always render
+-- above the window. Unlike a transparent Frame, a ScreenGui doesn't swallow clicks
+-- on empty space — input falls through to lower layers naturally.
+local DropGui=Util.New("ScreenGui",{Name="EmberDropdowns",ResetOnSpawn=false,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,IgnoreGuiInset=true,DisplayOrder=1000,Parent=CoreGui})
 
 -- ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 local NotifHolder=Util.New("Frame",{Name="Notifications",Size=UDim2.new(0,300,1,0),Position=UDim2.new(1,-316,0,0),BackgroundTransparency=1,Parent=ScreenGui})
@@ -241,6 +242,8 @@ function Ember:CreateWindow(opts)
 			t._scroll.Visible=false
 			Util.Tween(t._lbl,Ease.Fast,{TextColor3=Theme.TextSecondary})
 			Util.Tween(t._ind,Ease.Fast,{BackgroundTransparency=1})
+			-- Close any open color pickers on the tab we are leaving
+			if t._closePickers then t._closePickers() end
 		end
 		tab._scroll.Visible=true
 		Util.Tween(tab._lbl,Ease.Fast,{TextColor3=Theme.Accent})
@@ -253,6 +256,9 @@ function Ember:CreateWindow(opts)
 
 	function win:CreateTab(label)
 		local tab={_label=label,_sections={},_colIdx=0}
+		-- Registry of close functions for color pickers on this tab
+		local _pickerClosers={}
+		tab._closePickers=function() for _,fn in ipairs(_pickerClosers) do fn() end end
 
 		local btn=Util.New("TextButton",{Size=UDim2.new(0,0,1,-8),AutomaticSize=Enum.AutomaticSize.X,BackgroundTransparency=1,Text="",AutoButtonColor=false,Parent=TabScroll})
 		Util.Pad(0,12,0,12,btn)
@@ -390,41 +396,35 @@ function Ember:CreateWindow(opts)
 				-- We use a subtle stroke that matches the button background edge.
 				local Btn=Util.New("TextButton",{Size=UDim2.new(1,0,0,30),Position=UDim2.new(0,0,0,24),BackgroundColor3=Theme.DropdownBg,Text="",AutoButtonColor=false,Parent=r})
 				Util.Corner(6,Btn)
-				local BtnStroke=Util.Stroke(Theme.Border,1,0.35,Btn) -- FIX: more transparent so it's subtle
+				Util.Stroke(Theme.Border,1,0.3,Btn)
 
 				local BtnLbl=Util.New("TextLabel",{Size=UDim2.new(1,-34,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text=selected,TextColor3=Theme.TextPrimary,Font=Font.Regular,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,Parent=Btn})
 				local Arrow=Util.New("ImageLabel",{Size=UDim2.new(0,10,0,10),Position=UDim2.new(1,-20,0.5,-5),BackgroundTransparency=1,Image="rbxassetid://6034818372",ImageColor3=Theme.TextSecondary,Rotation=90,Parent=Btn})
 
-				-- FIX: highlight button border with Accent when open
 				local function setBtnOpen(isOpen)
-					if isOpen then
-						BtnStroke.Color=Theme.Accent
-						BtnStroke.Transparency=0
-					else
-						BtnStroke.Color=Theme.Border
-						BtnStroke.Transparency=0.35
-					end
+					-- Arrow rotation handled by callers; placeholder kept for call-site compat
+					_ = isOpen
 				end
 
 				local ITEM_H=30; local visRows=math.min(#items,5); local listH=visRows*ITEM_H
 
-				-- FIX: Parent the list to ModalLayer (top of ZIndex stack) so it always
-				-- renders above every button, card and other UI element in the window.
+				-- Parent to DropGui (DisplayOrder=1000) so it always renders above the window.
+				-- A ScreenGui doesn't swallow clicks on empty space unlike a transparent Frame.
 				local List=Util.New("ScrollingFrame",{
 					Size=UDim2.new(0,100,0,listH),
 					BackgroundColor3=Theme.DropdownBg,
 					BorderSizePixel=0,
 					Visible=false,
-					ZIndex=1,           -- relative within ModalLayer which is already at Z=500
+					ZIndex=1,
 					ClipsDescendants=true,
 					ScrollBarThickness=#items>5 and 3 or 0,
 					ScrollBarImageColor3=Theme.ScrollBar,
 					CanvasSize=UDim2.new(0,0,0,#items*ITEM_H),
-					Parent=ModalLayer   -- FIX: lives on top-level modal layer
+					Parent=DropGui
 				})
 				Util.Corner(6,List)
-				-- FIX: List border uses Accent to match the open button, visually grouping them
-				local ListStroke=Util.Stroke(Theme.Accent,1,0,List)
+				-- Subtle neutral border — no accent colour, matches the closed button style
+				Util.Stroke(Theme.Border,1,0.2,List)
 				local IL=Util.List(0,Enum.FillDirection.Vertical,Enum.HorizontalAlignment.Left,List)
 				IL.SortOrder=Enum.SortOrder.LayoutOrder
 
@@ -583,7 +583,19 @@ function Ember:CreateWindow(opts)
 				HexBox.FocusLost:Connect(function() local hex=HexBox.Text:gsub("#",""); if #hex==6 then local c=Util.FromHex(hex); H,S,V=Util.RGBtoHSV(c); SVCur.Position=UDim2.new(S,0,1-V,0); HueLine.Position=UDim2.new(0.5,0,H,0); apply() end end)
 
 				local pickerOpen=false
-				Swatch.MouseButton1Click:Connect(function() pickerOpen=not pickerOpen; PanelRow.Visible=pickerOpen; PanelRow.Size=UDim2.new(1,0,0,pickerOpen and 210 or 0) end)
+				local function closePicker()
+					if pickerOpen then
+						pickerOpen=false
+						PanelRow.Visible=false
+						PanelRow.Size=UDim2.new(1,0,0,0)
+					end
+				end
+				table.insert(_pickerClosers,closePicker)
+				Swatch.MouseButton1Click:Connect(function()
+					pickerOpen=not pickerOpen
+					PanelRow.Visible=pickerOpen
+					PanelRow.Size=UDim2.new(1,0,0,pickerOpen and 210 or 0)
+				end)
 
 				local ctrl={}
 				function ctrl:Set(c) curColor=c; H,S,V=Util.RGBtoHSV(c); SVCur.Position=UDim2.new(S,0,1-V,0); HueLine.Position=UDim2.new(0.5,0,H,0); apply() end
