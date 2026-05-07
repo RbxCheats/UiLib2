@@ -1,8 +1,11 @@
 --[[
-  EMBER UI LIBRARY  v1.0.4
+  EMBER UI LIBRARY  v1.0.5
   Fixes: color picker (UIGradient, no asset IDs), dropdown UIListLayout,
          notifications (no stripe, outline only), SetTheme live update,
          drop shadow subtler, section padding balanced, toggle color syncs.
+  v1.0.5: Dropdown border uses accent/surface styling (no ugly grey),
+          Dropdown list uses Modal ZIndex layer so it always appears above buttons,
+          Tab label colors register with theme system for live updates.
 ]]
 
 local Players          = game:GetService("Players")
@@ -148,14 +151,17 @@ function Util.MakeHueGradient(parent)
 	local g=Instance.new("UIGradient"); g.Rotation=90; g.Color=ColorSequence.new(stops); g.Parent=parent; return g
 end
 
-local Ember={}; Ember.__index=Ember; Ember._version="1.0.4"; Ember._windows={}
+local Ember={}; Ember.__index=Ember; Ember._version="1.0.5"; Ember._windows={}
 
 pcall(function() if CoreGui:FindFirstChild("EmberUI") then CoreGui.EmberUI:Destroy() end end)
 
 local ScreenGui=Util.New("ScreenGui",{Name="EmberUI",ResetOnSpawn=false,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,IgnoreGuiInset=true,DisplayOrder=999,Parent=CoreGui})
 
+-- FIX: A dedicated top-level modal layer parented to ScreenGui.
+-- Dropdowns are reparented here when open so they always sit above everything.
+local ModalLayer=Util.New("Frame",{Name="ModalLayer",Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,ZIndex=500,Parent=ScreenGui})
+
 -- ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
--- FIX: No stripe. Coloured UIStroke outline only. Clean layout with absolute positioning.
 local NotifHolder=Util.New("Frame",{Name="Notifications",Size=UDim2.new(0,300,1,0),Position=UDim2.new(1,-316,0,0),BackgroundTransparency=1,Parent=ScreenGui})
 local notifList=Util.List(8,Enum.FillDirection.Vertical,Enum.HorizontalAlignment.Right,NotifHolder)
 notifList.VerticalAlignment=Enum.VerticalAlignment.Bottom
@@ -170,7 +176,7 @@ function Ember:Notify(opts)
 
 	local card=Util.New("Frame",{Name="Notif",Size=UDim2.new(1,0,0,66),Position=UDim2.new(1,20,0,0),BackgroundColor3=Theme.Surface,Parent=NotifHolder})
 	Util.Corner(8,card)
-	Util.Stroke(accent,1.5,0,card)  -- coloured outline only, no stripe
+	Util.Stroke(accent,1.5,0,card)
 
 	Util.New("TextLabel",{Size=UDim2.new(1,-24,0,20),Position=UDim2.new(0,12,0,10),BackgroundTransparency=1,Text=title,TextColor3=Theme.TextPrimary,Font=Font.Bold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Center,Parent=card})
 	Util.New("TextLabel",{Size=UDim2.new(1,-24,0,28),Position=UDim2.new(0,12,0,33),BackgroundTransparency=1,Text=message,TextColor3=Theme.TextSecondary,Font=Font.Regular,TextSize=11,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top,TextWrapped=true,Parent=card})
@@ -198,7 +204,6 @@ function Ember:CreateWindow(opts)
 
 	local Root=Util.New("Frame",{Name="Window",Size=UDim2.new(0,width,0,height),Position=UDim2.new(0.5,-width/2,0.5,-height/2),BackgroundColor3=Theme.Background,BorderSizePixel=0,ClipsDescendants=false,Parent=ScreenGui})
 	Util.Corner(10,Root); Util.Stroke(Theme.Border,1,0,Root)
-	-- FIX: much subtler shadow
 	Util.New("ImageLabel",{Name="Shadow",Size=UDim2.new(1,30,1,30),Position=UDim2.new(0,-15,0,-15),BackgroundTransparency=1,Image="rbxassetid://6014261993",ImageColor3=Color3.new(0,0,0),ImageTransparency=0.78,ScaleType=Enum.ScaleType.Slice,SliceCenter=Rect.new(49,49,450,450),ZIndex=-1,Parent=Root})
 	win._root=Root
 
@@ -243,7 +248,6 @@ function Ember:CreateWindow(opts)
 		self._activeTab=tab
 	end
 
-	-- Toggle: instant show/hide, no animation, no clipping
 	function win:Toggle() win._visible=not win._visible; Root.Visible=win._visible end
 	UserInputService.InputBegan:Connect(function(i,gp) if not gp and i.KeyCode==Enum.KeyCode.Insert then win:Toggle() end end)
 
@@ -256,6 +260,20 @@ function Ember:CreateWindow(opts)
 		local ind=Util.New("Frame",{Size=UDim2.new(1,-8,0,2),Position=UDim2.new(0,4,1,-2),BackgroundColor3=Theme.Accent,BorderSizePixel=0,BackgroundTransparency=1,Parent=btn})
 		Util.Corner(2,ind); reg("Accent",ind,"BackgroundColor3")
 		tab._btn=btn; tab._lbl=lbl; tab._ind=ind
+
+		-- FIX: Register tab label TextColor3 with theme so inactive tabs update live.
+		-- We store whether this tab is active so we can apply the right colour on change.
+		regFn("Accent",function(newAccent)
+			if self._activeTab==tab then
+				lbl.TextColor3=newAccent
+			end
+			-- Inactive tabs keep TextSecondary; nothing needed for them.
+		end)
+		regFn("TextSecondary",function(newColor)
+			if self._activeTab~=tab then
+				lbl.TextColor3=newColor
+			end
+		end)
 
 		btn.MouseEnter:Connect(function() if self._activeTab~=tab then Util.Tween(lbl,Ease.Fast,{TextColor3=Theme.TextPrimary}) end end)
 		btn.MouseLeave:Connect(function() if self._activeTab~=tab then Util.Tween(lbl,Ease.Fast,{TextColor3=Theme.TextSecondary}) end end)
@@ -282,7 +300,6 @@ function Ember:CreateWindow(opts)
 			local Card=Util.New("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundColor3=Theme.Surface,BorderSizePixel=0,Parent=parent})
 			Util.Corner(8,Card); Util.Stroke(Theme.Border,1,0,Card)
 			local Inner=Util.New("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,Parent=Card})
-			-- FIX: Equal padding top+bottom (12px) so rows sit centred inside card
 			Util.Pad(12,14,12,14,Inner); Util.List(0,nil,nil,Inner)
 
 			local Hdr=Util.New("Frame",{Size=UDim2.new(1,0,0,26),BackgroundTransparency=1,LayoutOrder=0,Parent=Inner})
@@ -312,7 +329,6 @@ function Ember:CreateWindow(opts)
 				local Knob=Util.New("Frame",{Size=UDim2.new(0,14,0,14),Position=UDim2.new(0,state and 18 or 3,0.5,-7),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,Parent=Track})
 				Util.Corner(7,Knob)
 				local Hit=Util.New("TextButton",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="",AutoButtonColor=false,Parent=r})
-				-- FIX: update this track when Accent changes
 				regFn("Accent",function(newAccent) Theme.ToggleOn=newAccent; if state then Track.BackgroundColor3=newAccent end end)
 				local function set(v,fire)
 					state=v
@@ -362,7 +378,6 @@ function Ember:CreateWindow(opts)
 			end
 
 			-- AddDropdown
-			-- FIX: UIListLayout added so items stack. CanvasSize matches content. MouseButton1Up for reliable selection.
 			function sec:AddDropdown(opts)
 				opts=opts or {}
 				local lbl=opts.Label or "Dropdown"; local items=opts.Items or {"none"}
@@ -370,27 +385,61 @@ function Ember:CreateWindow(opts)
 				local selected=default
 				local r=row(60)
 				Util.New("TextLabel",{Size=UDim2.new(1,0,0,20),BackgroundTransparency=1,Text=lbl,TextColor3=Theme.TextPrimary,Font=Font.Regular,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left,Parent=r})
+
+				-- FIX: Dropdown button border uses Surface border style, not the raw Border grey.
+				-- We use a subtle stroke that matches the button background edge.
 				local Btn=Util.New("TextButton",{Size=UDim2.new(1,0,0,30),Position=UDim2.new(0,0,0,24),BackgroundColor3=Theme.DropdownBg,Text="",AutoButtonColor=false,Parent=r})
-				Util.Corner(6,Btn); Util.Stroke(Theme.Border,1,0,Btn)
+				Util.Corner(6,Btn)
+				local BtnStroke=Util.Stroke(Theme.Border,1,0.35,Btn) -- FIX: more transparent so it's subtle
+
 				local BtnLbl=Util.New("TextLabel",{Size=UDim2.new(1,-34,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text=selected,TextColor3=Theme.TextPrimary,Font=Font.Regular,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,Parent=Btn})
 				local Arrow=Util.New("ImageLabel",{Size=UDim2.new(0,10,0,10),Position=UDim2.new(1,-20,0.5,-5),BackgroundTransparency=1,Image="rbxassetid://6034818372",ImageColor3=Theme.TextSecondary,Rotation=90,Parent=Btn})
 
+				-- FIX: highlight button border with Accent when open
+				local function setBtnOpen(isOpen)
+					if isOpen then
+						BtnStroke.Color=Theme.Accent
+						BtnStroke.Transparency=0
+					else
+						BtnStroke.Color=Theme.Border
+						BtnStroke.Transparency=0.35
+					end
+				end
+
 				local ITEM_H=30; local visRows=math.min(#items,5); local listH=visRows*ITEM_H
-				-- Parented to ScreenGui so never clipped by card
-				local List=Util.New("ScrollingFrame",{Size=UDim2.new(0,100,0,listH),BackgroundColor3=Theme.DropdownBg,BorderSizePixel=0,Visible=false,ZIndex=60,ClipsDescendants=true,ScrollBarThickness=#items>5 and 3 or 0,ScrollBarImageColor3=Theme.ScrollBar,CanvasSize=UDim2.new(0,0,0,#items*ITEM_H),Parent=ScreenGui})
-				Util.Corner(6,List); Util.Stroke(Theme.Border,1,0,List)
-				-- FIX: UIListLayout so items actually stack vertically
+
+				-- FIX: Parent the list to ModalLayer (top of ZIndex stack) so it always
+				-- renders above every button, card and other UI element in the window.
+				local List=Util.New("ScrollingFrame",{
+					Size=UDim2.new(0,100,0,listH),
+					BackgroundColor3=Theme.DropdownBg,
+					BorderSizePixel=0,
+					Visible=false,
+					ZIndex=1,           -- relative within ModalLayer which is already at Z=500
+					ClipsDescendants=true,
+					ScrollBarThickness=#items>5 and 3 or 0,
+					ScrollBarImageColor3=Theme.ScrollBar,
+					CanvasSize=UDim2.new(0,0,0,#items*ITEM_H),
+					Parent=ModalLayer   -- FIX: lives on top-level modal layer
+				})
+				Util.Corner(6,List)
+				-- FIX: List border uses Accent to match the open button, visually grouping them
+				local ListStroke=Util.Stroke(Theme.Accent,1,0,List)
 				local IL=Util.List(0,Enum.FillDirection.Vertical,Enum.HorizontalAlignment.Left,List)
 				IL.SortOrder=Enum.SortOrder.LayoutOrder
 
 				local open=false; local itemBtns={}
-				local function closeList() open=false; List.Visible=false; Util.Tween(Arrow,Ease.Fast,{Rotation=90}) end
+				local function closeList()
+					open=false; List.Visible=false
+					Util.Tween(Arrow,Ease.Fast,{Rotation=90})
+					setBtnOpen(false)
+				end
 
 				for idx,itemText in ipairs(items) do
 					local isSel=(itemText==selected)
-					local ItemBtn=Util.New("TextButton",{Size=UDim2.new(1,0,0,ITEM_H),BackgroundColor3=isSel and Theme.SurfaceHover or Theme.DropdownItem,Text="",AutoButtonColor=false,LayoutOrder=idx,ZIndex=61,Parent=List})
-					local ItemLbl=Util.New("TextLabel",{Size=UDim2.new(1,-10,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text=itemText,TextColor3=isSel and Theme.Accent or Theme.TextPrimary,Font=isSel and Font.SemiBold or Font.Regular,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=62,Parent=ItemBtn})
-					if idx<#items then Util.New("Frame",{Size=UDim2.new(1,-20,0,1),Position=UDim2.new(0,10,1,-1),BackgroundColor3=Theme.Separator,BorderSizePixel=0,ZIndex=63,Parent=ItemBtn}) end
+					local ItemBtn=Util.New("TextButton",{Size=UDim2.new(1,0,0,ITEM_H),BackgroundColor3=isSel and Theme.SurfaceHover or Theme.DropdownItem,Text="",AutoButtonColor=false,LayoutOrder=idx,ZIndex=2,Parent=List})
+					local ItemLbl=Util.New("TextLabel",{Size=UDim2.new(1,-10,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text=itemText,TextColor3=isSel and Theme.Accent or Theme.TextPrimary,Font=isSel and Font.SemiBold or Font.Regular,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=3,Parent=ItemBtn})
+					if idx<#items then Util.New("Frame",{Size=UDim2.new(1,-20,0,1),Position=UDim2.new(0,10,1,-1),BackgroundColor3=Theme.Separator,BorderSizePixel=0,ZIndex=4,Parent=ItemBtn}) end
 					ItemBtn.MouseEnter:Connect(function() if itemText~=selected then ItemBtn.BackgroundColor3=Theme.DropdownHover end end)
 					ItemBtn.MouseLeave:Connect(function() ItemBtn.BackgroundColor3=(itemText==selected) and Theme.SurfaceHover or Theme.DropdownItem end)
 					ItemBtn.MouseButton1Up:Connect(function()
@@ -401,12 +450,16 @@ function Ember:CreateWindow(opts)
 					table.insert(itemBtns,{btn=ItemBtn,lbl=ItemLbl,text=itemText})
 				end
 
+				-- Keep ListStroke accent colour in sync with theme changes
+				regFn("Accent",function(newAccent) ListStroke.Color=newAccent end)
+
 				Btn.MouseButton1Click:Connect(function()
 					open=not open
 					if open then
 						local ap=Btn.AbsolutePosition; local as=Btn.AbsoluteSize
 						List.Position=UDim2.new(0,ap.X,0,ap.Y+as.Y+4); List.Size=UDim2.new(0,as.X,0,listH)
 						List.Visible=true; Util.Tween(Arrow,Ease.Fast,{Rotation=270})
+						setBtnOpen(true)
 					else closeList() end
 				end)
 				UserInputService.InputBegan:Connect(function(i)
@@ -451,8 +504,6 @@ function Ember:CreateWindow(opts)
 			end
 
 			-- AddColorPicker
-			-- FIX: SV square = 2 UIGradient frames (no asset IDs, renders everywhere).
-			--      Hue bar = UIGradient rainbow. No ClipsDescendants on SQ so gradients show.
 			function sec:AddColorPicker(opts)
 				opts=opts or {}
 				local lbl=opts.Label or "Color"; local default=opts.Default or Color3.fromRGB(240,166,75)
@@ -469,40 +520,30 @@ function Ember:CreateWindow(opts)
 				local Panel=Util.New("Frame",{Size=UDim2.new(1,0,0,200),BackgroundColor3=Theme.SurfaceActive,Parent=PanelRow})
 				Util.Corner(6,Panel); Util.Pad(10,10,10,10,Panel)
 
-				-- Layout inside panel (interior is panel minus 20px padding each side):
-				-- [SV: flex] 8px [HueBar: 18px] 8px [RightPanel: 80px]
-				-- SV width = 1 scale - (8+18+8+80) = 1scale - 114offset
-
-				-- SV Square: plain Frame, no ClipsDescendants (required for UIGradient layers)
 				local SQ=Util.New("Frame",{Size=UDim2.new(1,-(8+18+8+80),1,0),BackgroundColor3=Color3.fromHSV(H,1,1),BorderSizePixel=0,ClipsDescendants=false,Parent=Panel})
 				Util.Corner(4,SQ)
 
-				-- Layer 1: Saturation (white → hue, horizontal)
 				local SatF=Util.New("Frame",{Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=2,ClipsDescendants=false,Parent=SQ})
 				Util.Corner(4,SatF)
 				local SatG=Instance.new("UIGradient"); SatG.Rotation=0
 				SatG.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.new(1,1,1)),ColorSequenceKeypoint.new(1,Color3.fromHSV(H,1,1))})
 				SatG.Transparency=NumberSequence.new(0); SatG.Parent=SatF
 
-				-- Layer 2: Value (transparent → black, vertical)
 				local ValF=Util.New("Frame",{Size=UDim2.new(1,0,1,0),BackgroundColor3=Color3.new(0,0,0),BorderSizePixel=0,ZIndex=3,ClipsDescendants=false,Parent=SQ})
 				Util.Corner(4,ValF)
 				local ValG=Instance.new("UIGradient"); ValG.Rotation=90
 				ValG.Color=ColorSequence.new(Color3.new(0,0,0))
 				ValG.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(1,0)}); ValG.Parent=ValF
 
-				-- SVCursor
 				local SVCur=Util.New("Frame",{Size=UDim2.new(0,12,0,12),AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(S,0,1-V,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=10,Parent=SQ})
 				Util.Corner(6,SVCur); Util.Stroke(Color3.new(0,0,0),1.5,0.15,SVCur)
 
-				-- Hue bar (UIGradient rainbow, no asset ID)
 				local HueBar=Util.New("Frame",{Size=UDim2.new(0,18,1,0),Position=UDim2.new(1,-(8+80+8+18),0,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ClipsDescendants=false,Parent=Panel})
 				Util.Corner(4,HueBar); Util.MakeHueGradient(HueBar)
 
 				local HueLine=Util.New("Frame",{Size=UDim2.new(1,6,0,3),AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,H,0),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0,ZIndex=5,Parent=HueBar})
 				Util.Corner(1,HueLine); Util.Stroke(Color3.new(0,0,0),1,0.2,HueLine)
 
-				-- Right panel
 				local RP=Util.New("Frame",{Size=UDim2.new(0,80,1,0),Position=UDim2.new(1,-80,0,0),BackgroundTransparency=1,Parent=Panel})
 				local CPrev=Util.New("Frame",{Size=UDim2.new(1,0,0,50),BackgroundColor3=curColor,Parent=RP}); Util.Corner(5,CPrev)
 				Util.New("TextLabel",{Size=UDim2.new(1,0,0,12),Position=UDim2.new(0,0,0,54),BackgroundTransparency=1,Text="HEX",TextColor3=Theme.TextDisabled,Font=Font.Bold,TextSize=9,TextXAlignment=Enum.TextXAlignment.Left,Parent=RP})
@@ -565,7 +606,6 @@ function Ember:CreateWindow(opts)
 end -- CreateWindow
 
 -- ─── THEME API ────────────────────────────────────────────────────────────────
--- FIX: Direct property assignment (not tween) so elements update immediately.
 function Ember:SetTheme(overrides)
 	for k,v in pairs(overrides or {}) do
 		if Theme[k]~=nil then
