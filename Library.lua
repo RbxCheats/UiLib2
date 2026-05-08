@@ -179,15 +179,18 @@ function Util.Drag(handle, target)
 end
 
 function Util.MakeHueGradient(parent)
+	-- Use 24 evenly-spaced stops for a smooth rainbow without banding.
+	-- The last keypoint at t=1 snaps hue back to 0 (red) so it wraps cleanly.
+	-- Rotation=90 in Roblox UIGradient = top-to-bottom along the Y axis.
+	local N = 24
 	local stops = {}
-	for i = 0, 6 do
-		local t = i / 6
-		-- FIX: Rotation=0 so gradient runs top-to-bottom on a vertical hue bar.
-		-- The previous Rotation=90 made it run left-to-right, which was wrong.
-		table.insert(stops, ColorSequenceKeypoint.new(t, Color3.fromHSV(t == 1 and 0 or t, 1, 1)))
+	for i = 0, N do
+		local t = i / N
+		local h = (i == N) and 0 or t  -- wrap last stop back to red
+		table.insert(stops, ColorSequenceKeypoint.new(t, Color3.fromHSV(h, 1, 1)))
 	end
 	local g = Instance.new("UIGradient")
-	g.Rotation = 90  -- 90 = top-to-bottom on a vertical bar in Roblox's UIGradient system
+	g.Rotation = 90
 	g.Color = ColorSequence.new(stops)
 	g.Parent = parent
 	return g
