@@ -182,15 +182,18 @@ function Util.MakeHueGradient(parent)
 	-- Use 24 evenly-spaced stops for a smooth rainbow without banding.
 	-- The last keypoint at t=1 snaps hue back to 0 (red) so it wraps cleanly.
 	-- Rotation=90 in Roblox UIGradient = top-to-bottom along the Y axis.
-	-- Roblox ColorSequence supports a maximum of 20 keypoints.
-	-- 18 interior stops + the mandatory t=0 and t=1 endpoints = 20 total.
-	local N = 18
-	local stops = {}
-	for i = 0, N do
-		local t = i / N
-		local h = (i == N) and 0 or t  -- wrap last stop back to red
-		table.insert(stops, ColorSequenceKeypoint.new(t, Color3.fromHSV(h, 1, 1)))
-	end
+	-- Exactly 7 keypoints covering the 6 HSV hue segments (red→yellow→green→
+	-- cyan→blue→magenta→red). This is well within Roblox's ColorSequence limit
+	-- and produces a perfectly accurate rainbow with no banding.
+	local stops = {
+		ColorSequenceKeypoint.new(0/6, Color3.fromHSV(0/6, 1, 1)), -- red
+		ColorSequenceKeypoint.new(1/6, Color3.fromHSV(1/6, 1, 1)), -- yellow
+		ColorSequenceKeypoint.new(2/6, Color3.fromHSV(2/6, 1, 1)), -- green
+		ColorSequenceKeypoint.new(3/6, Color3.fromHSV(3/6, 1, 1)), -- cyan
+		ColorSequenceKeypoint.new(4/6, Color3.fromHSV(4/6, 1, 1)), -- blue
+		ColorSequenceKeypoint.new(5/6, Color3.fromHSV(5/6, 1, 1)), -- magenta
+		ColorSequenceKeypoint.new(6/6, Color3.fromHSV(0,   1, 1)), -- red (wrap)
+	}
 	local g = Instance.new("UIGradient")
 	g.Rotation = 90
 	g.Color = ColorSequence.new(stops)
