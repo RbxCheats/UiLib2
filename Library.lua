@@ -182,7 +182,9 @@ function Util.MakeHueGradient(parent)
 	-- Use 24 evenly-spaced stops for a smooth rainbow without banding.
 	-- The last keypoint at t=1 snaps hue back to 0 (red) so it wraps cleanly.
 	-- Rotation=90 in Roblox UIGradient = top-to-bottom along the Y axis.
-	local N = 24
+	-- Roblox ColorSequence supports a maximum of 20 keypoints.
+	-- 18 interior stops + the mandatory t=0 and t=1 endpoints = 20 total.
+	local N = 18
 	local stops = {}
 	for i = 0, N do
 		local t = i / N
