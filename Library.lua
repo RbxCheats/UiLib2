@@ -10,8 +10,8 @@
     - AddToggle regFn: mutated Theme.ToggleOn as a side-effect inside the
       theme registration callback, permanently changing the global theme for
       all future toggles. Now uses the passed accent value directly.
-    - Hue gradient: UIGradient Rotation was 90 (horizontal) on a vertical
-      hue bar. Fixed to 0 so colours run top-to-bottom correctly.
+    - Hue gradient: UIGradient Rotation corrected to 90 so colours run
+      top-to-bottom on the vertical hue bar.
 ]]
 
 local Players          = game:GetService("Players")
@@ -187,7 +187,7 @@ function Util.MakeHueGradient(parent)
 		table.insert(stops, ColorSequenceKeypoint.new(t, Color3.fromHSV(t == 1 and 0 or t, 1, 1)))
 	end
 	local g = Instance.new("UIGradient")
-	g.Rotation = 0  -- 0 = top-to-bottom (correct for a vertical hue bar)
+	g.Rotation = 90  -- 90 = top-to-bottom on a vertical bar in Roblox's UIGradient system
 	g.Color = ColorSequence.new(stops)
 	g.Parent = parent
 	return g
@@ -1045,9 +1045,8 @@ function Ember:CreateWindow(opts)
 				Util.Corner(6, SVCur); Util.Stroke(Color3.new(0,0,0), 1.5, 0.15, SVCur)
 
 				-- Vertical hue bar
-				-- FIX: Rotation=0 so the gradient runs top-to-bottom (0° hue at
-				-- top, 360° at bottom). The original Rotation=90 ran it
-				-- left-to-right, making the hue bar non-functional visually.
+				-- Rotation=90 in Roblox UIGradient means the gradient flows along
+				-- the Y axis (top-to-bottom), which is what we want for a vertical bar.
 				local HueBar = Util.New("Frame", {
 					Size = UDim2.new(0,18,1,0),
 					Position = UDim2.new(1,-(8+80+8+18),0,0),
@@ -1055,7 +1054,7 @@ function Ember:CreateWindow(opts)
 					BorderSizePixel = 0, ClipsDescendants = false, Parent = Panel,
 				})
 				Util.Corner(4, HueBar)
-				Util.MakeHueGradient(HueBar)  -- Rotation=0 set inside MakeHueGradient
+				Util.MakeHueGradient(HueBar)  -- Rotation=90 set inside MakeHueGradient
 
 				local HueLine = Util.New("Frame", {
 					Size = UDim2.new(1,6,0,3), AnchorPoint = Vector2.new(0.5,0.5),
