@@ -206,7 +206,14 @@ local Ember = {}; Ember.__index = Ember
 Ember._version = "1.0.8"; Ember._windows = {}
 
 pcall(function()
-	if CoreGui:FindFirstChild("EmberUI") then CoreGui.EmberUI:Destroy() end
+	for _, name in ipairs({"EmberUI", "EmberDropdowns"}) do
+		local old = CoreGui:FindFirstChild(name)
+		if old then old:Destroy() end
+	end
+	-- Also clear any cached module so re-require gets a fresh copy
+	if game:GetService("CoreGui"):FindFirstChild("EmberUI") then
+		game:GetService("CoreGui").EmberUI:Destroy()
+	end
 end)
 
 -- Single ScreenGui for everything. All UI lives here, including the dropdown
